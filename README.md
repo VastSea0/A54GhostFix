@@ -31,8 +31,10 @@ This turns the touch module off and back on without rebooting the phone.
 ### Features
 
 - One-tap fix inside the app
-- Home-screen widget
+- Three home-screen widgets: compact, standard, and large
 - Quick Settings tile
+- Optional Accessibility Service triggers for Volume Up, Volume Down, and shake gestures
+- Samsung Side key launcher shortcut where the device firmware exposes custom Side key apps
 - Bilingual interface: English and Turkish
 - No root required
 - No data wipe
@@ -43,10 +45,17 @@ This turns the touch module off and back on without rebooting the phone.
 - Samsung Galaxy A54 or a compatible Samsung build exposing `SemInputDeviceManagerService`
 - Shizuku running and permission granted to this app
 - Android developer options are only needed to start Shizuku, depending on your setup
+- Accessibility Service only if you want hardware-key or shake triggers
 
 ### Important safety note
 
 This is a workaround, not a hardware repair. If ghost touch returns often, the durable fix is still an OEM display/digitizer assembly and inspection of flex cable, connector seating, grounding/shielding, moisture, and frame pressure.
+
+### Trigger notes
+
+- Widgets and the Quick Settings tile run the same Shizuku shell reset used by the main button.
+- Volume-key and shake triggers require enabling **A54 Ghost Fix Trigger** in Android Accessibility settings, then turning on the desired triggers inside the app.
+- Android does not provide normal apps with a reliable long-press Power key API. The app includes a separate **Run Ghost Fix** launcher activity so Samsung Side key settings can target it on firmware versions that support custom Side key app actions. The in-app Side Key shortcut switch can disable that action without removing the shortcut from Samsung settings.
 
 ## Türkçe
 
@@ -77,8 +86,10 @@ Bu işlem telefonu yeniden başlatmadan dokunmatik modülü kapatıp tekrar aça
 ### Özellikler
 
 - Uygulama içinde tek dokunuşla düzeltme
-- Ana ekran widget’ı
+- Üç ana ekran widget’ı: kompakt, standart ve büyük
 - Hızlı Ayarlar kutucuğu
+- Ses Açma, Ses Kısma ve çalkalama için isteğe bağlı Erişilebilirlik Servisi tetikleyicileri
+- Cihaz yazılımı özel Yan tuş uygulamalarını destekliyorsa Samsung Yan tuş başlatma kısayolu
 - İki dilli arayüz: Türkçe ve İngilizce
 - Root gerektirmez
 - Veri silmez
@@ -89,10 +100,17 @@ Bu işlem telefonu yeniden başlatmadan dokunmatik modülü kapatıp tekrar aça
 - `SemInputDeviceManagerService` sunan Samsung Galaxy A54 veya uyumlu Samsung yazılımı
 - Shizuku çalışıyor olmalı ve bu uygulamaya izin verilmiş olmalı
 - Kurulum şekline göre Shizuku’yu başlatmak için geliştirici seçenekleri gerekebilir
+- Telefon tuşu veya çalkalama tetikleyicileri için Erişilebilirlik Servisi gerekir
 
 ### Önemli güvenlik notu
 
 Bu bir geçici çözüm, donanım onarımı değildir. Ghost touch sık sık geri dönüyorsa kalıcı çözüm hâlâ OEM ekran/digitizer modülü ve flex kablosu, konnektör oturması, grounding/shielding, nem ve kasa baskısı kontrolüdür.
+
+### Tetikleyici notları
+
+- Widget’lar ve Hızlı Ayarlar kutucuğu, ana butonla aynı Shizuku shell resetini çalıştırır.
+- Ses tuşu ve çalkalama tetikleyicileri için Android Erişilebilirlik ayarlarından **A54 Ghost Fix Tetikleyici** servisini açıp, uygulama içinden istediğin tetikleyicileri etkinleştir.
+- Android normal uygulamalara güvenilir bir güç tuşu uzun basış API’si vermez. Uygulamada ayrı bir **Ghost Fix Çalıştır** launcher aktivitesi var; Samsung Yan tuş ayarları özel uygulama eylemini destekleyen yazılımlarda bunu hedefleyebilir. Uygulama içindeki Yan Tuş kısayolu anahtarı, Samsung ayarlarından kısayolu silmeden bu eylemi kapatabilir.
 
 ## Build
 
