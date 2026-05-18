@@ -1,6 +1,7 @@
 <resources>
     <string name="app_name">A54 Ghost Fix</string>
     <string name="tile_label">Ghost Fix</string>
+    <string name="action_activity_label">Run Ghost Fix</string>
     <string name="widget_fix">Fix Ghost Touch</string>
     <string name="status_ready">Ready. Widget and quick tile can run the touch module reset.</string>
     <string name="status_shizuku_missing">Shizuku is not running. Start Shizuku, then return here.</string>
@@ -16,6 +17,19 @@
     <string name="safety_body">Use this as an emergency workaround. If the ghost touch returns often, the durable repair is still an OEM display/digitizer assembly and a proper flex, grounding, and frame-pressure inspection.</string>
     <string name="widget_title">Home Widget</string>
     <string name="widget_body">Add the widget to run the same reset without opening the app.</string>
+    <string name="triggers_title">Instant Triggers</string>
+    <string name="triggers_body">Enable Accessibility Service to use hardware-key and shake triggers. Android does not expose the long-press Power key to normal apps, but Samsung Side key settings may be able to launch the Run Ghost Fix shortcut.</string>
+    <string name="open_accessibility">Open Accessibility Settings</string>
+    <string name="open_side_key">Open Side Key Settings</string>
+    <string name="shake_trigger">Shake to fix</string>
+    <string name="volume_up_trigger">Volume Up key</string>
+    <string name="volume_down_trigger">Volume Down key</string>
+    <string name="side_key_trigger">Side Key shortcut</string>
+    <string name="accessibility_service_label">A54 Ghost Fix Trigger</string>
+    <string name="accessibility_service_description">Runs the A54 Ghost Fix reset from selected volume keys or a shake gesture.</string>
+    <string name="widget_compact">Ghost Fix</string>
+    <string name="widget_large_title">A54 Ghost Fix</string>
+    <string name="widget_large_body">Tap to reset the touch module.</string>
     <string name="toast_shizuku_missing">Shizuku is not running</string>
     <string name="toast_permission_needed">Grant Shizuku permission first</string>
     <string name="toast_fix_sent">Ghost touch reset sent</string>

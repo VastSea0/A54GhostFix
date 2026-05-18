@@ -108,6 +108,10 @@ final class GhostFixer {
         });
     }
 
+    static void runAndFinish(Context context, android.content.BroadcastReceiver.PendingResult pendingResult) {
+        run(context, (success, message) -> pendingResult.finish());
+    }
+
     private static Process newShizukuShellProcess(String command) throws Exception {
         Method newProcess = Shizuku.class.getDeclaredMethod(
                 "newProcess",

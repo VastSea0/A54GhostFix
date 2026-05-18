@@ -10,7 +10,7 @@ public class GhostFixReceiver extends BroadcastReceiver {
     @Override
     public void onReceive(Context context, Intent intent) {
         if (intent != null && ACTION_FIX.equals(intent.getAction())) {
-            GhostFixer.run(context, null);
+            GhostFixer.runAndFinish(context, goAsync());
         }
     }
 }

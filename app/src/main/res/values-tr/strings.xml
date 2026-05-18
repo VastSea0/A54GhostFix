@@ -1,6 +1,7 @@
 <resources>
     <string name="app_name">A54 Ghost Fix</string>
     <string name="tile_label">Ghost Fix</string>
+    <string name="action_activity_label">Ghost Fix Çalıştır</string>
     <string name="widget_fix">Ghost Touch Düzelt</string>
     <string name="status_ready">Hazır. Widget ve hızlı ayar kutucuğu dokunmatik modül resetini çalıştırabilir.</string>
     <string name="status_shizuku_missing">Shizuku çalışmıyor. Shizuku’yu başlatıp buraya dön.</string>
@@ -16,6 +17,19 @@
     <string name="safety_body">Bunu acil durum geçici çözümü olarak kullan. Ghost touch sık sık geri dönüyorsa kalıcı onarım hâlâ OEM ekran/digitizer modülü ve flex, grounding, kasa baskısı kontrolüdür.</string>
     <string name="widget_title">Ana Ekran Widget’ı</string>
     <string name="widget_body">Uygulamayı açmadan aynı reseti çalıştırmak için widget’ı ana ekrana ekle.</string>
+    <string name="triggers_title">Anlık Tetikleyiciler</string>
+    <string name="triggers_body">Telefon tuşları ve çalkalama tetikleyicileri için Erişilebilirlik Servisi’ni aç. Android normal uygulamalara güç tuşu uzun basışını vermez; fakat Samsung Yan tuş ayarları Run Ghost Fix kısayolunu başlatabiliyorsa oradan seçebilirsin.</string>
+    <string name="open_accessibility">Erişilebilirlik Ayarlarını Aç</string>
+    <string name="open_side_key">Yan Tuş Ayarlarını Aç</string>
+    <string name="shake_trigger">Çalkalayınca düzelt</string>
+    <string name="volume_up_trigger">Ses Açma tuşu</string>
+    <string name="volume_down_trigger">Ses Kısma tuşu</string>
+    <string name="side_key_trigger">Yan Tuş kısayolu</string>
+    <string name="accessibility_service_label">A54 Ghost Fix Tetikleyici</string>
+    <string name="accessibility_service_description">Seçili ses tuşları veya çalkalama hareketiyle A54 Ghost Fix resetini çalıştırır.</string>
+    <string name="widget_compact">Ghost Fix</string>
+    <string name="widget_large_title">A54 Ghost Fix</string>
+    <string name="widget_large_body">Dokunmatik modülü resetlemek için dokun.</string>
     <string name="toast_shizuku_missing">Shizuku çalışmıyor</string>
     <string name="toast_permission_needed">Önce Shizuku izni ver</string>
     <string name="toast_fix_sent">Ghost touch reset gönderildi</string>
