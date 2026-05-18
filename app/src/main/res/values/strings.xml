@@ -1,0 +1,28 @@
+<resources>
+    <string name="app_name">A54 Ghost Fix</string>
+    <string name="tile_label">Ghost Fix</string>
+    <string name="widget_fix">Fix Ghost Touch</string>
+    <string name="status_ready">Ready. Widget and quick tile can run the touch module reset.</string>
+    <string name="status_shizuku_missing">Shizuku is not running. Start Shizuku, then return here.</string>
+    <string name="status_permission_needed">Shizuku is running. Grant permission once to enable the fix.</string>
+    <string name="grant_permission">Grant Shizuku Permission</string>
+    <string name="run_fix">Run Touch Reset</string>
+    <string name="fixing">Resetting touch module…</string>
+    <string name="problem_title">The Problem</string>
+    <string name="problem_body">Some aftermarket Galaxy A54 display assemblies can make the Synaptics touch controller report false touches after impact or screen replacement. Android sees them as real kernel input events, so regular app-level cancellation does not help.</string>
+    <string name="solution_title">The Fix</string>
+    <string name="solution_body">This app asks Shizuku for shell-level access and sends Samsung’s TSP module reset command: module_off_master, wait two seconds, then module_on_master. It does not erase data, change firmware, or require root.</string>
+    <string name="safety_title">Safety Notes</string>
+    <string name="safety_body">Use this as an emergency workaround. If the ghost touch returns often, the durable repair is still an OEM display/digitizer assembly and a proper flex, grounding, and frame-pressure inspection.</string>
+    <string name="widget_title">Home Widget</string>
+    <string name="widget_body">Add the widget to run the same reset without opening the app.</string>
+    <string name="toast_shizuku_missing">Shizuku is not running</string>
+    <string name="toast_permission_needed">Grant Shizuku permission first</string>
+    <string name="toast_fix_sent">Ghost touch reset sent</string>
+    <string name="toast_fix_failed">Ghost fix failed</string>
+    <string name="result_success">Touch module reset sent.</string>
+    <string name="result_command_completed">Command completed.</string>
+    <string name="result_unexpected_shell">Unexpected shell response: %1$s</string>
+    <string name="result_shizuku_missing">Shizuku is not running.</string>
+    <string name="result_permission_needed">Open the app and grant Shizuku permission.</string>
+</resources>

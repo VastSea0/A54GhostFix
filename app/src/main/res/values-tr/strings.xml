@@ -1,0 +1,28 @@
+<resources>
+    <string name="app_name">A54 Ghost Fix</string>
+    <string name="tile_label">Ghost Fix</string>
+    <string name="widget_fix">Ghost Touch Düzelt</string>
+    <string name="status_ready">Hazır. Widget ve hızlı ayar kutucuğu dokunmatik modül resetini çalıştırabilir.</string>
+    <string name="status_shizuku_missing">Shizuku çalışmıyor. Shizuku’yu başlatıp buraya dön.</string>
+    <string name="status_permission_needed">Shizuku çalışıyor. Düzeltmeyi etkinleştirmek için bir kez izin ver.</string>
+    <string name="grant_permission">Shizuku İzni Ver</string>
+    <string name="run_fix">Dokunmatik Reset Çalıştır</string>
+    <string name="fixing">Dokunmatik modül sıfırlanıyor…</string>
+    <string name="problem_title">Sorun</string>
+    <string name="problem_body">Bazı yan sanayi Galaxy A54 ekran modülleri, düşme veya ekran değişimi sonrasında Synaptics dokunmatik kontrolcüsünün sahte dokunma üretmesine neden olabilir. Android bunları gerçek kernel input olayı olarak gördüğü için sıradan uygulama seviyesinde iptal etmek işe yaramaz.</string>
+    <string name="solution_title">Çözüm</string>
+    <string name="solution_body">Bu uygulama Shizuku’dan shell seviyesinde yetki alır ve Samsung’un TSP modül reset komutunu gönderir: module_off_master, iki saniye bekle, ardından module_on_master. Veri silmez, firmware değiştirmez ve root gerektirmez.</string>
+    <string name="safety_title">Güvenlik Notları</string>
+    <string name="safety_body">Bunu acil durum geçici çözümü olarak kullan. Ghost touch sık sık geri dönüyorsa kalıcı onarım hâlâ OEM ekran/digitizer modülü ve flex, grounding, kasa baskısı kontrolüdür.</string>
+    <string name="widget_title">Ana Ekran Widget’ı</string>
+    <string name="widget_body">Uygulamayı açmadan aynı reseti çalıştırmak için widget’ı ana ekrana ekle.</string>
+    <string name="toast_shizuku_missing">Shizuku çalışmıyor</string>
+    <string name="toast_permission_needed">Önce Shizuku izni ver</string>
+    <string name="toast_fix_sent">Ghost touch reset gönderildi</string>
+    <string name="toast_fix_failed">Ghost fix başarısız</string>
+    <string name="result_success">Dokunmatik modül reseti gönderildi.</string>
+    <string name="result_command_completed">Komut tamamlandı.</string>
+    <string name="result_unexpected_shell">Beklenmeyen shell yanıtı: %1$s</string>
+    <string name="result_shizuku_missing">Shizuku çalışmıyor.</string>
+    <string name="result_permission_needed">Uygulamayı açıp Shizuku izni ver.</string>
+</resources>
