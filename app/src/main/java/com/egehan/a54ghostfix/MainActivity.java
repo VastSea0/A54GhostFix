@@ -10,6 +10,7 @@ import android.view.View;
 import android.widget.TextView;
 
 import com.google.android.material.button.MaterialButton;
+import com.google.android.material.button.MaterialButtonToggleGroup;
 import com.google.android.material.switchmaterial.SwitchMaterial;
 
 import rikka.shizuku.Shizuku;
@@ -20,6 +21,8 @@ public class MainActivity extends Activity {
     private MaterialButton fixButton;
     private MaterialButton accessibilityButton;
     private MaterialButton sideKeyButton;
+    private MaterialButton emergencyButton;
+    private MaterialButtonToggleGroup emergencyModeGroup;
     private SwitchMaterial shakeSwitch;
     private SwitchMaterial volumeUpSwitch;
     private SwitchMaterial volumeDownSwitch;
@@ -41,6 +44,8 @@ public class MainActivity extends Activity {
         fixButton = findViewById(R.id.fix_button);
         accessibilityButton = findViewById(R.id.accessibility_button);
         sideKeyButton = findViewById(R.id.side_key_button);
+        emergencyButton = findViewById(R.id.emergency_button);
+        emergencyModeGroup = findViewById(R.id.emergency_mode_group);
         shakeSwitch = findViewById(R.id.shake_switch);
         volumeUpSwitch = findViewById(R.id.volume_up_switch);
         volumeDownSwitch = findViewById(R.id.volume_down_switch);
@@ -51,6 +56,18 @@ public class MainActivity extends Activity {
         fixButton.setOnClickListener(view -> runFix());
         accessibilityButton.setOnClickListener(view -> openAccessibilitySettings());
         sideKeyButton.setOnClickListener(view -> openSideKeySettings());
+        emergencyButton.setOnClickListener(view -> toggleEmergencyControl());
+        emergencyModeGroup.addOnButtonCheckedListener((group, checkedId, isChecked) -> {
+            if (!isChecked) {
+                return;
+            }
+            GhostFixPreferences.setEmergencyMode(
+                    this,
+                    checkedId == R.id.keypad_mode_button
+                            ? GhostFixPreferences.MODE_KEYPAD
+                            : GhostFixPreferences.MODE_GUARDED_TOUCH
+            );
+        });
 
         bindSwitch(shakeSwitch, GhostFixPreferences.KEY_SHAKE);
         bindSwitch(volumeUpSwitch, GhostFixPreferences.KEY_VOLUME_UP);
@@ -65,6 +82,7 @@ public class MainActivity extends Activity {
         Shizuku.addBinderDeadListener(binderDeadListener);
         Shizuku.addRequestPermissionResultListener(permissionResultListener);
         refresh();
+        refreshEmergencyControls();
     }
 
     @Override
@@ -112,6 +130,25 @@ public class MainActivity extends Activity {
 
     private void openAccessibilitySettings() {
         startActivity(new Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS));
+    }
+
+    private void toggleEmergencyControl() {
+        if (!EmergencyControl.isAccessibilityServiceEnabled(this)) {
+            openAccessibilitySettings();
+            return;
+        }
+        EmergencyControl.toggle(this);
+        refreshEmergencyControls();
+    }
+
+    private void refreshEmergencyControls() {
+        int mode = GhostFixPreferences.emergencyMode(this);
+        emergencyModeGroup.check(mode == GhostFixPreferences.MODE_KEYPAD
+                ? R.id.keypad_mode_button
+                : R.id.guarded_mode_button);
+        emergencyButton.setText(GhostFixPreferences.emergencyEnabled(this)
+                ? R.string.stop_emergency_control
+                : R.string.start_emergency_control);
     }
 
     private void openSideKeySettings() {

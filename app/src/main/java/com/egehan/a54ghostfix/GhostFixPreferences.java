@@ -9,6 +9,11 @@ final class GhostFixPreferences {
     static final String KEY_VOLUME_UP = "volume_up_trigger";
     static final String KEY_VOLUME_DOWN = "volume_down_trigger";
     static final String KEY_SIDE_KEY = "side_key_trigger";
+    static final String KEY_EMERGENCY_ENABLED = "emergency_control_enabled";
+    static final String KEY_EMERGENCY_MODE = "emergency_control_mode";
+
+    static final int MODE_GUARDED_TOUCH = 0;
+    static final int MODE_KEYPAD = 1;
 
     private GhostFixPreferences() {
     }
@@ -31,5 +36,21 @@ final class GhostFixPreferences {
 
     static boolean sideKeyEnabled(Context context) {
         return prefs(context).getBoolean(KEY_SIDE_KEY, true);
+    }
+
+    static boolean emergencyEnabled(Context context) {
+        return prefs(context).getBoolean(KEY_EMERGENCY_ENABLED, false);
+    }
+
+    static int emergencyMode(Context context) {
+        return prefs(context).getInt(KEY_EMERGENCY_MODE, MODE_GUARDED_TOUCH);
+    }
+
+    static void setEmergencyEnabled(Context context, boolean enabled) {
+        prefs(context).edit().putBoolean(KEY_EMERGENCY_ENABLED, enabled).apply();
+    }
+
+    static void setEmergencyMode(Context context, int mode) {
+        prefs(context).edit().putInt(KEY_EMERGENCY_MODE, mode).apply();
     }
 }
