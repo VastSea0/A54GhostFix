@@ -225,7 +225,7 @@ final class EmergencyOverlayView extends View {
         baseRim.setColor(0x20FFFFFF);
         canvas.drawRoundRect(basePlate, dp(24), dp(24), baseRim);
 
-        for (int i = 0; i < GhostFixAccessibilityService.LAUNCHER_PACKAGES.length; i++) {
+        for (int i = 0; i < GhostTouchBypassService.LAUNCHER_PACKAGES.length; i++) {
             if (i >= cols * rows) break;
             
             int row = i / cols;
@@ -296,7 +296,7 @@ final class EmergencyOverlayView extends View {
             }
             
             // 4. Engraved Text
-            String name = GhostFixAccessibilityService.LAUNCHER_NAMES[i];
+            String name = GhostTouchBypassService.LAUNCHER_NAMES[i];
             textPaint.setTextSize(dp(16));
             textPaint.setFakeBoldText(true);
             textPaint.setTextAlign(Paint.Align.CENTER);

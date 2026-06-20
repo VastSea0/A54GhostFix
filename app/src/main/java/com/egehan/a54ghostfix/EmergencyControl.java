@@ -26,7 +26,7 @@ final class EmergencyControl {
 
         String expected = new ComponentName(
                 context,
-                GhostFixAccessibilityService.class
+                GhostTouchBypassService.class
         ).flattenToString();
         TextUtils.SimpleStringSplitter splitter = new TextUtils.SimpleStringSplitter(':');
         splitter.setString(enabledServices);

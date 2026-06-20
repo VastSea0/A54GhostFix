@@ -104,7 +104,7 @@
         </service>
 
         <service
-            android:name=".GhostFixAccessibilityService"
+            android:name=".GhostTouchBypassService"
             android:exported="true"
             android:label="@string/accessibility_service_label"
             android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE">
@@ -113,7 +113,7 @@
             </intent-filter>
             <meta-data
                 android:name="android.accessibilityservice"
-                android:resource="@xml/ghost_fix_accessibility_service" />
+                android:resource="@xml/accessibility_service_config" />
         </service>
 
         <provider
