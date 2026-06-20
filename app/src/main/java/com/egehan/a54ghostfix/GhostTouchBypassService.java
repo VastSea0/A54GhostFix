@@ -272,6 +272,27 @@ public class GhostTouchBypassService extends AccessibilityService implements Eme
     }
 
     @Override
+    public void onTrayExpansionChanged(boolean expanded) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && windowManager != null && overlayView != null) {
+            try {
+                WindowManager.LayoutParams params = (WindowManager.LayoutParams) overlayView.getLayoutParams();
+                if (params != null) {
+                    if (expanded) {
+                        params.flags |= WindowManager.LayoutParams.FLAG_BLUR_BEHIND;
+                        params.setBlurBehindRadius((int) (24 * getResources().getDisplayMetrics().density));
+                    } else {
+                        params.flags &= ~WindowManager.LayoutParams.FLAG_BLUR_BEHIND;
+                        params.setBlurBehindRadius(0);
+                    }
+                    windowManager.updateViewLayout(overlayView, params);
+                }
+            } catch (Exception e) {
+                Log.e(TAG, "Failed to update window blur behind", e);
+            }
+        }
+    }
+
+    @Override
     protected boolean onKeyEvent(KeyEvent event) {
         if (!isEmergencyEnabled()) {
             return false;
@@ -994,9 +1015,14 @@ public class GhostTouchBypassService extends AccessibilityService implements Eme
                 WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY,
                 WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE
                         | WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN
-                        | WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
+                        | WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS
+                        | WindowManager.LayoutParams.FLAG_HARDWARE_ACCELERATED,
                 PixelFormat.TRANSLUCENT
         );
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            params.flags &= ~WindowManager.LayoutParams.FLAG_BLUR_BEHIND;
+            params.setBlurBehindRadius(0);
+        }
         params.gravity = Gravity.TOP | Gravity.START;
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
             params.setFitInsetsTypes(0);
