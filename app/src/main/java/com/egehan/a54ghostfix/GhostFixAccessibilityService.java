@@ -50,6 +50,8 @@ public class GhostFixAccessibilityService extends AccessibilityService
     private boolean upLongHandled;
     private boolean downLongHandled;
     private int selectedIndex;
+    private boolean isInVirtualMenu = false;
+    private int virtualSelectedIndex = 0;
 
     private final Runnable refreshNodesRunnable = this::refreshKeypadNodes;
     private final Runnable upLongRunnable = () -> {
@@ -254,6 +256,36 @@ public class GhostFixAccessibilityService extends AccessibilityService
         vibrate(scrolled ? 45 : 20);
     }
 
+    @Override
+    public void onVirtualDockTap(int index) {
+        executeVirtualAction(index);
+    }
+
+    private void executeVirtualAction(int index) {
+        switch (index) {
+            case 0: // Geri
+                performGlobalAction(GLOBAL_ACTION_BACK);
+                vibrate(45);
+                break;
+            case 1: // Ana Ekran
+                performGlobalAction(GLOBAL_ACTION_HOME);
+                vibrate(60);
+                break;
+            case 2: // Sonlar (Recents)
+                performGlobalAction(GLOBAL_ACTION_RECENTS);
+                vibrate(50);
+                break;
+            case 3: // Bildirimler
+                performGlobalAction(GLOBAL_ACTION_NOTIFICATIONS);
+                vibrate(45);
+                break;
+            case 4: // Kapat
+                GhostFixPreferences.setEmergencyEnabled(this, false);
+                vibrate(120);
+                break;
+        }
+    }
+
     private void handleEmergencyKeyDown(int keyCode) {
         Log.d(TAG, "key down: " + KeyEvent.keyCodeToString(keyCode));
         if (keyCode == KeyEvent.KEYCODE_VOLUME_UP) {
@@ -337,6 +369,8 @@ public class GhostFixAccessibilityService extends AccessibilityService
     }
 
     private void updateEmergencyState() {
+        isInVirtualMenu = false;
+        virtualSelectedIndex = 0;
         if (!isEmergencyEnabled()) {
             hideEmergencyOverlay();
             recycleKeypadNodes();
@@ -344,6 +378,7 @@ public class GhostFixAccessibilityService extends AccessibilityService
         }
 
         showEmergencyOverlay();
+        overlayView.setVirtualSelection(isInVirtualMenu, virtualSelectedIndex);
         int mode = currentMode();
         if (mode == GhostFixPreferences.MODE_GUARDED_TOUCH) {
             overlayView.setMode(mode, getString(R.string.overlay_touch_locked));
@@ -404,26 +439,80 @@ public class GhostFixAccessibilityService extends AccessibilityService
     }
 
     private void navigateSelection(int direction) {
-        if (keypadNodes.isEmpty()) {
-            refreshKeypadNodes();
+        if (isInVirtualMenu) {
+            int candidate = virtualSelectedIndex + direction;
+            if (candidate < 0) {
+                // Exit virtual menu to the bottom of the node list
+                if (keypadNodes.isEmpty()) {
+                    virtualSelectedIndex = 4;
+                } else {
+                    isInVirtualMenu = false;
+                    selectedIndex = keypadNodes.size() - 1;
+                    updateSelectedNode();
+                }
+            } else if (candidate >= 5) {
+                // Exit virtual menu to the top of the node list
+                if (keypadNodes.isEmpty()) {
+                    virtualSelectedIndex = 0;
+                } else {
+                    isInVirtualMenu = false;
+                    selectedIndex = 0;
+                    updateSelectedNode();
+                }
+            } else {
+                virtualSelectedIndex = candidate;
+                updateSelectedNode();
+            }
+            vibrate(25);
             return;
         }
 
+        // Screen node navigation
+        if (keypadNodes.isEmpty()) {
+            refreshKeypadNodes();
+            if (keypadNodes.isEmpty()) {
+                // Enter virtual menu since there are no screen nodes
+                isInVirtualMenu = true;
+                virtualSelectedIndex = 0;
+                updateSelectedNode();
+                vibrate(25);
+                return;
+            }
+        }
+
         int candidate = selectedIndex + direction;
-        if (candidate < 0 || candidate >= keypadNodes.size()) {
+        if (candidate < 0) {
+            // Enter virtual menu at the last option (Exit, index 4)
+            isInVirtualMenu = true;
+            virtualSelectedIndex = 4;
+            updateSelectedNode();
+            vibrate(25);
+            return;
+        } else if (candidate >= keypadNodes.size()) {
             if (scrollScreen(direction > 0)) {
                 selectedIndex = direction > 0 ? 0 : Math.max(0, keypadNodes.size() - 1);
                 scheduleNodeRefresh(280);
+                vibrate(25);
                 return;
             }
-            candidate = direction > 0 ? 0 : keypadNodes.size() - 1;
+            // If cannot scroll, enter virtual menu at first option (Back, index 0)
+            isInVirtualMenu = true;
+            virtualSelectedIndex = 0;
+            updateSelectedNode();
+            vibrate(25);
+            return;
         }
+
         selectedIndex = candidate;
         updateSelectedNode();
         vibrate(25);
     }
 
     private void activateSelectedNode() {
+        if (isInVirtualMenu) {
+            executeVirtualAction(virtualSelectedIndex);
+            return;
+        }
         if (keypadNodes.isEmpty() || selectedIndex >= keypadNodes.size()) {
             refreshKeypadNodes();
             return;
@@ -458,7 +547,9 @@ public class GhostFixAccessibilityService extends AccessibilityService
 
         if (keypadNodes.isEmpty()) {
             selectedIndex = 0;
-            overlayView.clearSelection();
+            if (!isInVirtualMenu) {
+                overlayView.clearSelection();
+            }
             return;
         }
         selectedIndex = Math.max(0, Math.min(previousIndex, keypadNodes.size() - 1));
@@ -466,9 +557,18 @@ public class GhostFixAccessibilityService extends AccessibilityService
     }
 
     private void updateSelectedNode() {
-        if (overlayView == null
-                || keypadNodes.isEmpty()
-                || selectedIndex >= keypadNodes.size()) {
+        if (overlayView == null) {
+            return;
+        }
+
+        overlayView.setVirtualSelection(isInVirtualMenu, virtualSelectedIndex);
+
+        if (isInVirtualMenu) {
+            overlayView.clearSelection();
+            return;
+        }
+
+        if (keypadNodes.isEmpty() || selectedIndex >= keypadNodes.size()) {
             return;
         }
         AccessibilityNodeInfo node = keypadNodes.get(selectedIndex);
