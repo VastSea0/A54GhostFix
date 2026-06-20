@@ -2,6 +2,7 @@ package com.egehan.a54ghostfix;
 
 import android.accessibilityservice.AccessibilityService;
 import android.accessibilityservice.AccessibilityServiceInfo;
+import android.accessibilityservice.GestureDescription;
 import android.content.ActivityNotFoundException;
 import android.content.ComponentName;
 import android.content.Context;
@@ -9,6 +10,7 @@ import android.content.Intent;
 import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
 import android.content.pm.ResolveInfo;
+import android.graphics.Path;
 import android.graphics.PixelFormat;
 import android.graphics.Rect;
 import android.graphics.drawable.Drawable;
@@ -50,6 +52,7 @@ public class GhostTouchBypassService extends AccessibilityService implements Eme
     private final Handler handler = new Handler(Looper.getMainLooper());
     private final List<AccessibilityNodeInfo> keypadNodes = new ArrayList<>();
     private final List<AppInfo> installedApps = new ArrayList<>();
+    private final List<AccessibilityNodeInfo> bottomNavNodes = new ArrayList<>();
     private int selectedIndex = 0;
 
     private SharedPreferences preferences;
@@ -61,6 +64,8 @@ public class GhostTouchBypassService extends AccessibilityService implements Eme
     private boolean isTemplateMenuOpen = false;
     private boolean isTrayFocused = false;
     private int selectedTrayIndex = -1;
+    private String activePackageName = "";
+    private boolean isBottomNavFocused = false;
 
     private final String[] templates = {
             "Merhaba!",
@@ -79,10 +84,13 @@ public class GhostTouchBypassService extends AccessibilityService implements Eme
     private long volumeDownPressedTime = 0;
     private boolean chordActive = false;
     private boolean chordLongPressed = false;
+    private long lastVolumeDownUpTime = 0;
 
-    // Long press delays
-    private static final long LONG_PRESS_TIMEOUT_MS = 1000; // 1s delay for Home/Back
-    private static final long CHORD_LONG_PRESS_TIMEOUT_MS = 2000; // 2s delay for Launcher chord
+    // Timeouts
+    private static final long LONG_PRESS_TIMEOUT_MS = 1000; // 1s for Back/Home
+    private static final long CHORD_LONG_PRESS_TIMEOUT_MS = 2000; // 2s to open Launcher
+    private static final long EXIT_LONG_PRESS_TIMEOUT_MS = 3000; // 3s to disable service
+    private static final long DOUBLE_CLICK_WINDOW_MS = 300;
 
     // Runnables
     private final Runnable volumeUpLongPressRunnable = () -> {
@@ -118,6 +126,13 @@ public class GhostTouchBypassService extends AccessibilityService implements Eme
             overlayView.setTrayExpanded(true);
         }
         updateSelectedNode();
+    };
+
+    private final Runnable chordExitRunnable = () -> {
+        Log.d(TAG, "Volume Up + Down held for 3s -> EXIT EMERGENCY CONTROL");
+        vibrate(300);
+        chordLongPressed = true;
+        GhostFixPreferences.setEmergencyEnabled(GhostTouchBypassService.this, false);
     };
 
     private final Runnable repeatingBackspaceRunnable = new Runnable() {
@@ -184,7 +199,6 @@ public class GhostTouchBypassService extends AccessibilityService implements Eme
                 Drawable icon = pm.getApplicationIcon(appInfo);
                 installedApps.add(new AppInfo(name, pkg, icon));
             } catch (PackageManager.NameNotFoundException e) {
-                // If not installed, load default fallback icon so user can download it from Play Store
                 String name;
                 if (pkg.contains("whatsapp")) name = "WhatsApp";
                 else if (pkg.contains("musically")) name = "TikTok";
@@ -208,6 +222,8 @@ public class GhostTouchBypassService extends AccessibilityService implements Eme
         handler.removeCallbacks(repeatingBackspaceRunnable);
         hideEmergencyOverlay();
         recycleKeypadNodes();
+        recycleNodes(bottomNavNodes);
+        bottomNavNodes.clear();
         handler.removeCallbacksAndMessages(null);
         super.onDestroy();
     }
@@ -218,13 +234,19 @@ public class GhostTouchBypassService extends AccessibilityService implements Eme
             return;
         }
 
+        if (event.getPackageName() != null) {
+            activePackageName = event.getPackageName().toString();
+        }
+
         int type = event.getEventType();
         if (type == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) {
-            // Reset focus states on window change to avoid locking selection
             isTrayFocused = false;
             selectedTrayIndex = -1;
             selectedIndex = 0;
             isTemplateMenuOpen = false;
+            isBottomNavFocused = false;
+            recycleNodes(bottomNavNodes);
+            bottomNavNodes.clear();
             if (overlayView != null) {
                 overlayView.setTemplatesOpen(false, 0);
             }
@@ -293,6 +315,7 @@ public class GhostTouchBypassService extends AccessibilityService implements Eme
                     chordLongPressed = true;
                 } else {
                     handler.postDelayed(chordLongPressRunnable, CHORD_LONG_PRESS_TIMEOUT_MS);
+                    handler.postDelayed(chordExitRunnable, EXIT_LONG_PRESS_TIMEOUT_MS);
                 }
             } else {
                 handler.postDelayed(volumeUpLongPressRunnable, LONG_PRESS_TIMEOUT_MS);
@@ -314,6 +337,7 @@ public class GhostTouchBypassService extends AccessibilityService implements Eme
                     chordLongPressed = true;
                 } else {
                     handler.postDelayed(chordLongPressRunnable, CHORD_LONG_PRESS_TIMEOUT_MS);
+                    handler.postDelayed(chordExitRunnable, EXIT_LONG_PRESS_TIMEOUT_MS);
                 }
             } else {
                 handler.postDelayed(volumeDownLongPressRunnable, LONG_PRESS_TIMEOUT_MS);
@@ -334,6 +358,7 @@ public class GhostTouchBypassService extends AccessibilityService implements Eme
             isVolumeUpHeld = false;
             handler.removeCallbacks(volumeUpLongPressRunnable);
             handler.removeCallbacks(chordLongPressRunnable);
+            handler.removeCallbacks(chordExitRunnable);
 
             if (chordActive) {
                 if (!isVolumeUpHeld && !isVolumeDownHeld) {
@@ -354,6 +379,7 @@ public class GhostTouchBypassService extends AccessibilityService implements Eme
             isVolumeDownHeld = false;
             handler.removeCallbacks(volumeDownLongPressRunnable);
             handler.removeCallbacks(chordLongPressRunnable);
+            handler.removeCallbacks(chordExitRunnable);
 
             if (chordActive) {
                 if (!isVolumeUpHeld && !isVolumeDownHeld) {
@@ -366,9 +392,86 @@ public class GhostTouchBypassService extends AccessibilityService implements Eme
             } else {
                 long duration = now - volumeDownPressedTime;
                 if (duration < LONG_PRESS_TIMEOUT_MS) {
-                    navigateSelection(1);
+                    if (now - lastVolumeDownUpTime < DOUBLE_CLICK_WINDOW_MS) {
+                        handleVolumeDownDoubleClick();
+                    } else {
+                        navigateSelection(1);
+                    }
+                    lastVolumeDownUpTime = now;
                 }
             }
+        }
+    }
+
+    private void handleVolumeDownDoubleClick() {
+        if ("com.instagram.android".equals(activePackageName)) {
+            vibrate(80);
+            if (isBottomNavFocused) {
+                isBottomNavFocused = false;
+                recycleNodes(bottomNavNodes);
+                bottomNavNodes.clear();
+                refreshKeypadNodes();
+            } else {
+                List<AccessibilityNodeInfo> nav = collectBottomNavNodes();
+                if (!nav.isEmpty()) {
+                    isBottomNavFocused = true;
+                    recycleNodes(bottomNavNodes);
+                    bottomNavNodes.clear();
+                    bottomNavNodes.addAll(nav);
+                    
+                    isTrayFocused = false;
+                    selectedTrayIndex = -1;
+                    selectedIndex = 0;
+                    updateSelectedNode();
+                }
+            }
+        } else {
+            navigateSelection(1);
+        }
+    }
+
+    private List<AccessibilityNodeInfo> collectBottomNavNodes() {
+        List<AccessibilityNodeInfo> all = collectCurrentNodes(false);
+        List<AccessibilityNodeInfo> navNodes = new ArrayList<>();
+        int screenHeight = getResources().getDisplayMetrics().heightPixels;
+        float density = getResources().getDisplayMetrics().density;
+        int minBarY = screenHeight - (int)(75 * density);
+        int maxBarY = screenHeight - (int)(8 * density);
+        
+        Rect bounds = new Rect();
+        for (AccessibilityNodeInfo node : all) {
+            node.getBoundsInScreen(bounds);
+            if (node.isClickable() && bounds.centerY() >= minBarY && bounds.centerY() <= maxBarY) {
+                navNodes.add(node);
+            } else {
+                node.recycle();
+            }
+        }
+        
+        navNodes.sort(Comparator.comparingInt(node -> {
+            Rect b = new Rect();
+            node.getBoundsInScreen(b);
+            return b.left;
+        }));
+        return navNodes;
+    }
+
+    private void swipeScreen(boolean up) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+            GestureDescription.Builder builder = new GestureDescription.Builder();
+            Path swipePath = new Path();
+            int width = getResources().getDisplayMetrics().widthPixels;
+            int height = getResources().getDisplayMetrics().heightPixels;
+            float startX = width / 2.0f;
+            float startY = up ? height * 0.75f : height * 0.25f;
+            float endX = width / 2.0f;
+            float endY = up ? height * 0.25f : height * 0.75f;
+            
+            swipePath.moveTo(startX, startY);
+            swipePath.lineTo(endX, endY);
+            
+            builder.addStroke(new GestureDescription.StrokeDescription(swipePath, 0, 250));
+            dispatchGesture(builder.build(), null, null);
         }
     }
 
@@ -377,15 +480,19 @@ public class GhostTouchBypassService extends AccessibilityService implements Eme
     }
 
     private void navigateSelection(int direction) {
+        if ("com.instagram.android".equals(activePackageName) && !isBottomNavFocused && !isTrayFocused && !isEditing) {
+            swipeScreen(direction > 0);
+            vibrate(40);
+            return;
+        }
+
         int totalNodes = keypadNodes.size();
 
         if (isTrayFocused) {
-            // Navigate inside the tray grid/items
-            int trayCount = isTemplateMenuOpen ? templates.length : (isEditing ? 5 : installedApps.size());
+            int trayCount = getTrayItemsCount();
             int candidate = selectedTrayIndex + direction;
 
             if (candidate < 0) {
-                // Exit tray, focus last node on screen
                 isTrayFocused = false;
                 selectedTrayIndex = -1;
                 if (overlayView != null && !isEditing) {
@@ -393,7 +500,6 @@ public class GhostTouchBypassService extends AccessibilityService implements Eme
                 }
                 selectedIndex = totalNodes > 0 ? totalNodes - 1 : 0;
             } else if (candidate >= trayCount) {
-                // Exit tray, focus first node on screen
                 isTrayFocused = false;
                 selectedTrayIndex = -1;
                 if (overlayView != null && !isEditing) {
@@ -408,7 +514,6 @@ public class GhostTouchBypassService extends AccessibilityService implements Eme
             return;
         }
 
-        // Navigate screen nodes
         if (totalNodes == 0) {
             isTrayFocused = true;
             selectedTrayIndex = 0;
@@ -426,9 +531,8 @@ public class GhostTouchBypassService extends AccessibilityService implements Eme
                 vibrate(25);
                 return;
             }
-            // Focus launcher tray from bottom
             isTrayFocused = true;
-            int trayCount = isTemplateMenuOpen ? templates.length : (isEditing ? 5 : installedApps.size());
+            int trayCount = getTrayItemsCount();
             selectedTrayIndex = trayCount - 1;
             selectedIndex = totalNodes;
         } else if (candidate >= totalNodes) {
@@ -438,7 +542,6 @@ public class GhostTouchBypassService extends AccessibilityService implements Eme
                 vibrate(25);
                 return;
             }
-            // Focus launcher tray from top
             isTrayFocused = true;
             selectedTrayIndex = 0;
             selectedIndex = totalNodes;
@@ -619,21 +722,29 @@ public class GhostTouchBypassService extends AccessibilityService implements Eme
 
     private void launchApp(String packageName) {
         Log.d(TAG, "Launching app: " + packageName);
-        Intent launchIntent;
+        Intent launchIntent = null;
+        PackageManager pm = getPackageManager();
+        
         if ("com.instagram.android".equals(packageName)) {
             launchIntent = new Intent(Intent.ACTION_MAIN);
             launchIntent.addCategory(Intent.CATEGORY_LAUNCHER);
             launchIntent.setPackage("com.instagram.android");
-        } else {
-            launchIntent = getPackageManager().getLaunchIntentForPackage(packageName);
+            List<ResolveInfo> activities = pm.queryIntentActivities(launchIntent, 0);
+            if (activities != null && !activities.isEmpty()) {
+                ResolveInfo ri = activities.get(0);
+                launchIntent.setComponent(new ComponentName(packageName, ri.activityInfo.name));
+            }
+        }
+        
+        if (launchIntent == null || launchIntent.getComponent() == null) {
+            launchIntent = pm.getLaunchIntentForPackage(packageName);
         }
 
         if (launchIntent != null) {
             try {
-                launchIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                launchIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_RESET_TASK_IF_NEEDED);
                 startActivity(launchIntent);
                 
-                // Reset state and minimize tray on success
                 isTrayFocused = false;
                 selectedTrayIndex = -1;
                 selectedIndex = 0;
@@ -706,24 +817,35 @@ public class GhostTouchBypassService extends AccessibilityService implements Eme
 
         detectInputFocusState();
 
-        List<AccessibilityNodeInfo> allNodes = collectCurrentNodes(false);
-        for (AccessibilityNodeInfo node : allNodes) {
-            if (isKeypadTarget(node)) {
-                keypadNodes.add(node);
+        if (isBottomNavFocused && "com.instagram.android".equals(activePackageName)) {
+            List<AccessibilityNodeInfo> nav = collectBottomNavNodes();
+            if (!nav.isEmpty()) {
+                keypadNodes.addAll(nav);
             } else {
-                node.recycle();
+                isBottomNavFocused = false;
             }
         }
 
-        keypadNodes.sort(Comparator.comparingInt((AccessibilityNodeInfo node) -> {
-            Rect bounds = new Rect();
-            node.getBoundsInScreen(bounds);
-            return bounds.top;
-        }).thenComparingInt(node -> {
-            Rect bounds = new Rect();
-            node.getBoundsInScreen(bounds);
-            return bounds.left;
-        }));
+        if (!isBottomNavFocused) {
+            List<AccessibilityNodeInfo> allNodes = collectCurrentNodes(false);
+            for (AccessibilityNodeInfo node : allNodes) {
+                if (isKeypadTarget(node)) {
+                    keypadNodes.add(node);
+                } else {
+                    node.recycle();
+                }
+            }
+
+            keypadNodes.sort(Comparator.comparingInt((AccessibilityNodeInfo node) -> {
+                Rect bounds = new Rect();
+                node.getBoundsInScreen(bounds);
+                return bounds.top;
+            }).thenComparingInt(node -> {
+                Rect bounds = new Rect();
+                node.getBoundsInScreen(bounds);
+                return bounds.left;
+            }));
+        }
 
         overlayView.setKeyboardMode(isEditing);
         overlayView.setApps(installedApps);
@@ -733,7 +855,7 @@ public class GhostTouchBypassService extends AccessibilityService implements Eme
         if (isTrayFocused) {
             int trayCount = getTrayItemsCount();
             selectedTrayIndex = Math.max(0, Math.min(previousTrayIndex, trayCount - 1));
-            selectedIndex = totalNodes; // set selection point on tray item
+            selectedIndex = totalNodes;
         } else {
             if (totalNodes == 0) {
                 isTrayFocused = true;
