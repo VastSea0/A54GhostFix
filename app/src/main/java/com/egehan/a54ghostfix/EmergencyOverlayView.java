@@ -3,31 +3,23 @@ package com.egehan.a54ghostfix;
 import android.content.Context;
 import android.graphics.Canvas;
 import android.graphics.Color;
-import android.graphics.LinearGradient;
 import android.graphics.Paint;
-import android.graphics.Path;
 import android.graphics.Rect;
 import android.graphics.RectF;
-import android.graphics.Shader;
 import android.view.MotionEvent;
 import android.view.View;
 
 final class EmergencyOverlayView extends View {
     interface Listener {
         void onTrustedTap(float x, float y);
-
         void onTrustedSwipe(float startX, float startY, float endX, float endY);
-
-        void onVirtualDockTap(int index);
     }
 
     private static final long GUARD_SETTLE_MS = 70;
 
     private final Listener listener;
     private final Paint shieldPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
-    private final Paint panelPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Paint textPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
-    private final Paint focusPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Rect focusBounds = new Rect();
     private final float density;
 
@@ -40,9 +32,12 @@ final class EmergencyOverlayView extends View {
     private String statusText = "";
     private String selectionText = "";
 
-    // Virtual dock navigation state
-    private boolean inVirtualMenu = false;
-    private int virtualSelectedIndex = 0;
+    private boolean isActionMenuOpen;
+    private int actionMenuSelectedIndex;
+
+    private final String[] ACTION_MENU_ITEMS = {
+            "Geri", "Ana Ekran", "Son Uygulamalar", "Bildirimler", "Hızlı Ayarlar", "Devre Dışı Bırak"
+    };
 
     EmergencyOverlayView(Context context, Listener listener) {
         super(context);
@@ -52,19 +47,11 @@ final class EmergencyOverlayView extends View {
         setBackgroundColor(Color.TRANSPARENT);
         setClickable(true);
         setFocusable(false);
-
-        // Enable hardware acceleration compatibility for custom shadow layers
         setLayerType(LAYER_TYPE_SOFTWARE, null);
 
-        // Tinted backdrop for enhanced glassmorphism contrast
-        shieldPaint.setColor(0x2005100E);
-        panelPaint.setColor(0xE6121D1A);
+        shieldPaint.setColor(0x00000000);
         textPaint.setColor(Color.WHITE);
         textPaint.setTextSize(dp(15));
-        textPaint.setFakeBoldText(true);
-        focusPaint.setStyle(Paint.Style.STROKE);
-        focusPaint.setStrokeWidth(dp(4));
-        focusPaint.setColor(0xFF6FFFCB);
     }
 
     void setMode(int mode, String status) {
@@ -97,183 +84,150 @@ final class EmergencyOverlayView extends View {
         invalidate();
     }
 
-    void setVirtualSelection(boolean inVirtualMenu, int index) {
-        this.inVirtualMenu = inVirtualMenu;
-        this.virtualSelectedIndex = index;
+    void setActionMenuState(boolean open, int selectedIndex) {
+        isActionMenuOpen = open;
+        actionMenuSelectedIndex = selectedIndex;
         invalidate();
     }
 
-    private void drawGlassPanel(Canvas canvas, RectF rect, boolean isFocused) {
-        // 1. Draw soft glass drop shadow
+    private void drawMinimalGlassPanel(Canvas canvas, RectF rect, boolean isFocused) {
+        // Shadow
         Paint shadowPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
         shadowPaint.setStyle(Paint.Style.FILL);
-        shadowPaint.setColor(0x30000000);
-        if (isFocused) {
-            shadowPaint.setShadowLayer(dp(12), 0, dp(1), 0xFF6FFFCB);
-        } else {
-            shadowPaint.setShadowLayer(dp(8), 0, dp(3), 0x22000000);
-        }
-        canvas.drawRoundRect(rect, dp(14), dp(14), shadowPaint);
+        shadowPaint.setColor(0x00000000);
+        shadowPaint.setShadowLayer(dp(8), 0, dp(4), 0x40000000);
+        canvas.drawRoundRect(rect, dp(12), dp(12), shadowPaint);
 
-        // 2. Draw frosted glass background gradient
-        Paint glassPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
-        glassPaint.setStyle(Paint.Style.FILL);
-        LinearGradient gradient = new LinearGradient(
-                rect.left, rect.top,
-                rect.left, rect.bottom,
-                new int[]{0xF21C2B27, 0xF20F1614},
-                null,
-                Shader.TileMode.CLAMP
-        );
-        glassPaint.setShader(gradient);
-        canvas.drawRoundRect(rect, dp(14), dp(14), glassPaint);
+        // Background
+        Paint bgPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+        bgPaint.setStyle(Paint.Style.FILL);
+        bgPaint.setColor(isFocused ? 0xE61A1A1A : 0xCC121212);
+        canvas.drawRoundRect(rect, dp(12), dp(12), bgPaint);
 
-        // 3. Draw glass stroke/border (specular reflections on edges)
+        // Border
         Paint borderPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
         borderPaint.setStyle(Paint.Style.STROKE);
-        borderPaint.setStrokeWidth(dp(1.2f));
-        LinearGradient borderGradient = new LinearGradient(
-                rect.left, rect.top,
-                rect.right, rect.bottom,
-                new int[]{0x4DFFFFFF, 0x1AFFFFFF, 0x1A6FFFCB, 0x3DFFFFFF},
-                new float[]{0.0f, 0.4f, 0.7f, 1.0f},
-                Shader.TileMode.CLAMP
-        );
-        borderPaint.setShader(borderGradient);
-        canvas.drawRoundRect(rect, dp(14), dp(14), borderPaint);
-
-        // 4. Subtle inner reflection highlight (top 40% of the card)
-        Paint shinePaint = new Paint(Paint.ANTI_ALIAS_FLAG);
-        shinePaint.setStyle(Paint.Style.FILL);
-        shinePaint.setColor(0x08FFFFFF);
-        Path shinePath = new Path();
-        shinePath.addRoundRect(rect, dp(14), dp(14), Path.Direction.CW);
-        canvas.save();
-        canvas.clipPath(shinePath);
-        canvas.drawRect(rect.left, rect.top, rect.right, rect.top + rect.height() * 0.4f, shinePaint);
-        canvas.restore();
+        borderPaint.setStrokeWidth(dp(1f));
+        borderPaint.setColor(isFocused ? 0x4DFFFFFF : 0x1AFFFFFF);
+        canvas.drawRoundRect(rect, dp(12), dp(12), borderPaint);
     }
 
     @Override
     protected void onDraw(Canvas canvas) {
         super.onDraw(canvas);
+        
+        if (isActionMenuOpen) {
+            shieldPaint.setColor(0x80000000);
+        } else {
+            shieldPaint.setColor(0x10000000);
+        }
         canvas.drawRect(0, 0, getWidth(), getHeight(), shieldPaint);
 
-        // 1. Draw Glass Status Bar
-        RectF statusRect = new RectF(dp(12), dp(10), getWidth() - dp(12), dp(46));
-        drawGlassPanel(canvas, statusRect, false);
-
-        textPaint.setTextSize(dp(12.5f));
-        textPaint.setFakeBoldText(true);
-        textPaint.setColor(Color.WHITE);
-        float statusY = dp(10) + dp(18) - ((textPaint.descent() + textPaint.ascent()) / 2);
-        canvas.drawText(statusText, dp(28), statusY, textPaint);
-
-        // 2. Draw Glass Dock Panel
-        RectF dockRect = new RectF(dp(12), dp(52), getWidth() - dp(12), dp(108));
-        drawGlassPanel(canvas, dockRect, inVirtualMenu);
-
-        // 3. Draw horizontal navigation keys inside the dock
-        float columnWidth = (getWidth() - dp(24)) / 5;
-        String[] labels = {
-                "◀ Geri",
-                "● Ana E.",
-                "■ Sonlar",
-                "▼ Bild.",
-                "✕ Kapat"
-        };
-
-        Paint btnTextPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
-        btnTextPaint.setTextSize(dp(11));
-        btnTextPaint.setFakeBoldText(true);
-        btnTextPaint.setTextAlign(Paint.Align.CENTER);
-
-        for (int i = 0; i < 5; i++) {
-            float btnLeft = dp(12) + i * columnWidth + dp(4);
-            float btnRight = dp(12) + (i + 1) * columnWidth - dp(4);
-            float btnTop = dp(52) + dp(6);
-            float btnBottom = dp(108) - dp(6);
-            RectF btnRect = new RectF(btnLeft, btnTop, btnRight, btnBottom);
-
-            boolean isSelected = inVirtualMenu && (virtualSelectedIndex == i);
-            if (isSelected) {
-                // Glowy neon key styling
-                Paint selPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
-                selPaint.setStyle(Paint.Style.FILL);
-                selPaint.setShadowLayer(dp(8), 0, 0, 0xFF6FFFCB);
-                LinearGradient selGrad = new LinearGradient(
-                        btnRect.left, btnRect.top,
-                        btnRect.left, btnRect.bottom,
-                        new int[]{0xE600F5A0, 0xE600D9F5},
-                        null,
-                        Shader.TileMode.CLAMP
-                );
-                selPaint.setShader(selGrad);
-                canvas.drawRoundRect(btnRect, dp(10), dp(10), selPaint);
-
-                Paint selBorder = new Paint(Paint.ANTI_ALIAS_FLAG);
-                selBorder.setStyle(Paint.Style.STROKE);
-                selBorder.setStrokeWidth(dp(1.8f));
-                selBorder.setColor(0xFF6FFFCB);
-                canvas.drawRoundRect(btnRect, dp(10), dp(10), selBorder);
-
-                btnTextPaint.setColor(0xFF0C1613); // High contrast dark text on neon background
-            } else {
-                // Semi-translucent glass key styling
-                Paint normalPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
-                normalPaint.setStyle(Paint.Style.FILL);
-                normalPaint.setColor(0x12FFFFFF);
-                canvas.drawRoundRect(btnRect, dp(10), dp(10), normalPaint);
-
-                Paint normalBorder = new Paint(Paint.ANTI_ALIAS_FLAG);
-                normalBorder.setStyle(Paint.Style.STROKE);
-                normalBorder.setStrokeWidth(dp(1.0f));
-                normalBorder.setColor(0x26FFFFFF);
-                canvas.drawRoundRect(btnRect, dp(10), dp(10), normalBorder);
-
-                btnTextPaint.setColor(0xCCFFFFFF); // 80% opacity white text
-            }
-
-            float textY = btnRect.centerY() - ((btnTextPaint.descent() + btnTextPaint.ascent()) / 2);
-            canvas.drawText(labels[i], btnRect.centerX(), textY, btnTextPaint);
+        if (isActionMenuOpen) {
+            drawActionMenu(canvas);
+            return;
         }
 
-        // 4. Focus Ring (Liquid Neon glow theme)
+        // 1. Status Pill
+        float pillWidth = dp(160);
+        float pillHeight = dp(32);
+        float pillLeft = (getWidth() - pillWidth) / 2;
+        RectF statusRect = new RectF(pillLeft, dp(16), pillLeft + pillWidth, dp(16) + pillHeight);
+        drawMinimalGlassPanel(canvas, statusRect, false);
+
+        Paint dotPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+        dotPaint.setStyle(Paint.Style.FILL);
+        dotPaint.setColor(guardedMode ? 0xFFE57373 : 0xFF81C784); // Muted red/green
+        canvas.drawCircle(statusRect.left + dp(16), statusRect.centerY(), dp(4), dotPaint);
+
+        textPaint.setTextSize(dp(12));
+        textPaint.setFakeBoldText(true);
+        textPaint.setColor(0xE6FFFFFF);
+        textPaint.setTextAlign(Paint.Align.LEFT);
+        float statusY = statusRect.centerY() - ((textPaint.descent() + textPaint.ascent()) / 2);
+        String displayStatus = guardedMode ? "KORUMALI DOKUNMA" : "TUŞ TAKIMI KONTROLÜ";
+        canvas.drawText(displayStatus, statusRect.left + dp(28), statusY, textPaint);
+
+        // 2. Focus Ring
         if (!guardedMode && !focusBounds.isEmpty()) {
             RectF highlight = new RectF(focusBounds);
-            highlight.inset(-dp(5), -dp(5));
+            highlight.inset(-dp(4), -dp(4));
 
-            Paint highlightPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
-            highlightPaint.setStyle(Paint.Style.STROKE);
-            highlightPaint.setStrokeWidth(dp(3.5f));
-            highlightPaint.setColor(0xFF6FFFCB);
-            highlightPaint.setShadowLayer(dp(10), 0, 0, 0xFF6FFFCB);
+            Paint focusFill = new Paint(Paint.ANTI_ALIAS_FLAG);
+            focusFill.setStyle(Paint.Style.FILL);
+            focusFill.setColor(0x1AFFFFFF);
+            canvas.drawRoundRect(highlight, dp(8), dp(8), focusFill);
 
-            canvas.drawRoundRect(highlight, dp(12), dp(12), highlightPaint);
+            Paint focusStroke = new Paint(Paint.ANTI_ALIAS_FLAG);
+            focusStroke.setStyle(Paint.Style.STROKE);
+            focusStroke.setStrokeWidth(dp(1.5f));
+            focusStroke.setColor(0xB3FFFFFF);
+            focusStroke.setShadowLayer(dp(2), 0, dp(1), 0x40000000);
+            canvas.drawRoundRect(highlight, dp(8), dp(8), focusStroke);
         }
 
-        // 5. Selection Text (Liquid Glass styling)
+        // 3. Selection Text
         if (!selectionText.isEmpty()) {
-            textPaint.setTextSize(dp(13));
+            textPaint.setTextSize(dp(14));
             textPaint.setFakeBoldText(false);
-            float width = Math.min(
-                    textPaint.measureText(selectionText) + dp(28),
-                    getWidth() - dp(24)
-            );
-            RectF bottomRect = new RectF(dp(12), getHeight() - dp(54), dp(12) + width, getHeight() - dp(12));
-            drawGlassPanel(canvas, bottomRect, false);
+            float width = Math.min(textPaint.measureText(selectionText) + dp(32), getWidth() - dp(32));
+            float left = (getWidth() - width) / 2;
+            RectF bottomRect = new RectF(left, getHeight() - dp(56), left + width, getHeight() - dp(16));
+            drawMinimalGlassPanel(canvas, bottomRect, false);
 
-            String visible = ellipsize(selectionText, getWidth() - dp(52));
+            String visible = ellipsize(selectionText, getWidth() - dp(64));
             textPaint.setColor(0xE6FFFFFF);
-            canvas.drawText(visible, dp(26), getHeight() - dp(27), textPaint);
-            textPaint.setTextSize(dp(15));
-            textPaint.setFakeBoldText(true);
+            textPaint.setTextAlign(Paint.Align.CENTER);
+            float textY = bottomRect.centerY() - ((textPaint.descent() + textPaint.ascent()) / 2);
+            canvas.drawText(visible, bottomRect.centerX(), textY, textPaint);
+        }
+    }
+
+    private void drawActionMenu(Canvas canvas) {
+        float itemHeight = dp(48);
+        float menuWidth = dp(240);
+        float menuHeight = ACTION_MENU_ITEMS.length * itemHeight + dp(16);
+        float left = (getWidth() - menuWidth) / 2;
+        float top = (getHeight() - menuHeight) / 2;
+
+        RectF menuRect = new RectF(left, top, left + menuWidth, top + menuHeight);
+        drawMinimalGlassPanel(canvas, menuRect, false);
+
+        textPaint.setTextAlign(Paint.Align.CENTER);
+        textPaint.setFakeBoldText(true);
+
+        for (int i = 0; i < ACTION_MENU_ITEMS.length; i++) {
+            float itemTop = top + dp(8) + (i * itemHeight);
+            RectF itemRect = new RectF(left + dp(8), itemTop, left + menuWidth - dp(8), itemTop + itemHeight);
+
+            if (i == actionMenuSelectedIndex) {
+                Paint highlightPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+                highlightPaint.setStyle(Paint.Style.FILL);
+                highlightPaint.setColor(0x26FFFFFF);
+                canvas.drawRoundRect(itemRect, dp(8), dp(8), highlightPaint);
+
+                Paint borderPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+                borderPaint.setStyle(Paint.Style.STROKE);
+                borderPaint.setStrokeWidth(dp(1f));
+                borderPaint.setColor(0x4DFFFFFF);
+                canvas.drawRoundRect(itemRect, dp(8), dp(8), borderPaint);
+                
+                textPaint.setColor(0xFFFFFFFF);
+                textPaint.setTextSize(dp(16));
+            } else {
+                textPaint.setColor(0xB3FFFFFF);
+                textPaint.setTextSize(dp(14));
+                textPaint.setFakeBoldText(false);
+            }
+
+            float textY = itemRect.centerY() - ((textPaint.descent() + textPaint.ascent()) / 2);
+            canvas.drawText(ACTION_MENU_ITEMS[i], itemRect.centerX(), textY, textPaint);
         }
     }
 
     @Override
     public boolean onTouchEvent(MotionEvent event) {
-        if (!guardedMode || !guardHeld) {
+        if (!guardedMode || !guardHeld || isActionMenuOpen) {
             trackingTrustedTouch = false;
             return true;
         }
@@ -304,19 +258,6 @@ final class EmergencyOverlayView extends View {
                 float endX = event.getRawX();
                 float endY = event.getRawY();
                 float distance = (float) Math.hypot(endX - downX, endY - downY);
-
-                // Check if touch starts and ends inside the Glass Dock panel (y between 52dp and 108dp)
-                float yMin = dp(52);
-                float yMax = dp(108);
-                if (downY >= yMin && downY <= yMax && endY >= yMin && endY <= yMax
-                        && downX >= dp(12) && downX <= getWidth() - dp(12)) {
-                    float columnWidth = (getWidth() - dp(24)) / 5;
-                    int index = (int) ((downX - dp(12)) / columnWidth);
-                    if (index >= 0 && index < 5) {
-                        listener.onVirtualDockTap(index);
-                    }
-                    return true;
-                }
 
                 if (distance >= dp(48)) {
                     listener.onTrustedSwipe(downX, downY, endX, endY);

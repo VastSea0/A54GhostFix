@@ -29,9 +29,16 @@ public class GhostFixAccessibilityService extends AccessibilityService
         implements SensorEventListener, EmergencyOverlayView.Listener {
     private static final String TAG = "A54EmergencyControl";
     private static final long TRIGGER_DEBOUNCE_MS = 3500;
-    private static final long SINGLE_KEY_LONG_PRESS_MS = 850;
-    private static final long EXIT_CHORD_MS = 1800;
+    private static final long ACTION_MENU_TRIGGER_MS = 800;
     private static final float SHAKE_THRESHOLD = 19.5f;
+
+    public static final int ACTION_BACK = 0;
+    public static final int ACTION_HOME = 1;
+    public static final int ACTION_RECENTS = 2;
+    public static final int ACTION_NOTIFICATIONS = 3;
+    public static final int ACTION_QUICK_SETTINGS = 4;
+    public static final int ACTION_DISABLE = 5;
+    public static final int ACTION_COUNT = 6;
 
     private final Handler handler = new Handler(Looper.getMainLooper());
     private final List<AccessibilityNodeInfo> keypadNodes = new ArrayList<>();
@@ -45,40 +52,27 @@ public class GhostFixAccessibilityService extends AccessibilityService
     private boolean listeningForShake;
     private boolean volumeUpHeld;
     private boolean volumeDownHeld;
-    private boolean chordActive;
-    private boolean chordHandled;
-    private boolean upLongHandled;
-    private boolean downLongHandled;
+    private boolean isActionMenuOpen;
+    private int actionMenuSelectedIndex;
     private int selectedIndex;
-    private boolean isInVirtualMenu = false;
-    private int virtualSelectedIndex = 0;
+
+    private static final long CHORD_WINDOW_MS = 80;
+    private boolean chordStarted;
+    private boolean actionMenuOpenedThisChord;
+    private Runnable latestNavRunnable;
 
     private final Runnable refreshNodesRunnable = this::refreshKeypadNodes;
-    private final Runnable upLongRunnable = () -> {
-        if (!volumeUpHeld || volumeDownHeld || !isEmergencyEnabled()) {
-            return;
-        }
-        if (currentMode() == GhostFixPreferences.MODE_KEYPAD) {
-            upLongHandled = true;
-            performGlobalAction(GLOBAL_ACTION_BACK);
-            vibrate(45);
-        }
-    };
-    private final Runnable downLongRunnable = () -> {
-        if (!volumeDownHeld || volumeUpHeld || !isEmergencyEnabled()) {
-            return;
-        }
-        downLongHandled = true;
-        performGlobalAction(GLOBAL_ACTION_HOME);
-        vibrate(60);
-    };
-    private final Runnable chordLongRunnable = () -> {
+    private final Runnable actionMenuTriggerRunnable = () -> {
         if (!volumeUpHeld || !volumeDownHeld || !isEmergencyEnabled()) {
             return;
         }
-        chordHandled = true;
-        GhostFixPreferences.setEmergencyEnabled(this, false);
-        vibrate(120);
+        isActionMenuOpen = true;
+        actionMenuSelectedIndex = 0;
+        actionMenuOpenedThisChord = true;
+        vibrate(80);
+        if (overlayView != null) {
+            overlayView.setActionMenuState(true, actionMenuSelectedIndex);
+        }
     };
 
     private final SharedPreferences.OnSharedPreferenceChangeListener preferenceChangeListener =
@@ -256,66 +250,52 @@ public class GhostFixAccessibilityService extends AccessibilityService
         vibrate(scrolled ? 45 : 20);
     }
 
-    @Override
-    public void onVirtualDockTap(int index) {
-        executeVirtualAction(index);
-    }
-
-    private void executeVirtualAction(int index) {
-        switch (index) {
-            case 0: // Geri
-                performGlobalAction(GLOBAL_ACTION_BACK);
-                vibrate(45);
-                break;
-            case 1: // Ana Ekran
-                performGlobalAction(GLOBAL_ACTION_HOME);
-                vibrate(60);
-                break;
-            case 2: // Sonlar (Recents)
-                performGlobalAction(GLOBAL_ACTION_RECENTS);
-                vibrate(50);
-                break;
-            case 3: // Bildirimler
-                performGlobalAction(GLOBAL_ACTION_NOTIFICATIONS);
-                vibrate(45);
-                break;
-            case 4: // Kapat
-                GhostFixPreferences.setEmergencyEnabled(this, false);
-                vibrate(120);
-                break;
-        }
-    }
-
     private void handleEmergencyKeyDown(int keyCode) {
         Log.d(TAG, "key down: " + KeyEvent.keyCodeToString(keyCode));
+
         if (keyCode == KeyEvent.KEYCODE_VOLUME_UP) {
             volumeUpHeld = true;
-            upLongHandled = false;
         } else {
             volumeDownHeld = true;
-            downLongHandled = false;
         }
 
         if (volumeUpHeld && volumeDownHeld) {
-            chordActive = true;
-            chordHandled = false;
-            handler.removeCallbacks(upLongRunnable);
-            handler.removeCallbacks(downLongRunnable);
-            handler.postDelayed(chordLongRunnable, EXIT_CHORD_MS);
-            updateGuardState(false);
+            chordStarted = true;
+            if (latestNavRunnable != null) {
+                handler.removeCallbacks(latestNavRunnable);
+                latestNavRunnable = null;
+            }
+            
+            if (!isActionMenuOpen) {
+                handler.postDelayed(actionMenuTriggerRunnable, ACTION_MENU_TRIGGER_MS);
+            }
             return;
         }
 
-        if (currentMode() == GhostFixPreferences.MODE_GUARDED_TOUCH) {
-            if (keyCode == KeyEvent.KEYCODE_VOLUME_UP) {
-                updateGuardState(true);
-            } else {
-                handler.postDelayed(downLongRunnable, SINGLE_KEY_LONG_PRESS_MS);
-            }
-        } else if (keyCode == KeyEvent.KEYCODE_VOLUME_UP) {
-            handler.postDelayed(upLongRunnable, SINGLE_KEY_LONG_PRESS_MS);
+        chordStarted = false;
+        actionMenuOpenedThisChord = false;
+        handler.removeCallbacks(actionMenuTriggerRunnable);
+
+        if (keyCode == KeyEvent.KEYCODE_VOLUME_UP) {
+            latestNavRunnable = () -> {
+                if (isActionMenuOpen) {
+                    navigateActionMenu(-1);
+                } else if (currentMode() == GhostFixPreferences.MODE_GUARDED_TOUCH) {
+                    updateGuardState(true);
+                } else {
+                    navigateSelection(-1);
+                }
+            };
+            handler.postDelayed(latestNavRunnable, CHORD_WINDOW_MS);
         } else {
-            handler.postDelayed(downLongRunnable, SINGLE_KEY_LONG_PRESS_MS);
+            latestNavRunnable = () -> {
+                if (isActionMenuOpen) {
+                    navigateActionMenu(1);
+                } else {
+                    navigateSelection(1);
+                }
+            };
+            handler.postDelayed(latestNavRunnable, CHORD_WINDOW_MS);
         }
     }
 
@@ -323,54 +303,75 @@ public class GhostFixAccessibilityService extends AccessibilityService
         Log.d(TAG, "key up: " + KeyEvent.keyCodeToString(keyCode));
         if (keyCode == KeyEvent.KEYCODE_VOLUME_UP) {
             volumeUpHeld = false;
-            handler.removeCallbacks(upLongRunnable);
-            updateGuardState(false);
+            if (currentMode() == GhostFixPreferences.MODE_GUARDED_TOUCH) {
+                updateGuardState(false);
+            }
         } else {
             volumeDownHeld = false;
-            handler.removeCallbacks(downLongRunnable);
         }
 
-        if (chordActive) {
-            if (!volumeUpHeld && !volumeDownHeld) {
-                handler.removeCallbacks(chordLongRunnable);
-                if (!chordHandled) {
-                    if (currentMode() == GhostFixPreferences.MODE_KEYPAD) {
-                        activateSelectedNode();
+        handler.removeCallbacks(actionMenuTriggerRunnable);
+
+        if (chordStarted) {
+            if (!volumeUpHeld || !volumeDownHeld) {
+                if (!actionMenuOpenedThisChord) {
+                    if (isActionMenuOpen) {
+                        executeActionMenuSelection();
+                        closeActionMenu();
                     } else {
-                        GhostFixPreferences.setEmergencyMode(
-                                this,
-                                GhostFixPreferences.MODE_KEYPAD
-                        );
+                        activateSelectedNode();
                     }
                 }
-                chordActive = false;
-                chordHandled = false;
-                upLongHandled = false;
-                downLongHandled = false;
+                chordStarted = false;
             }
-            return;
         }
+    }
 
-        int mode = currentMode();
-        if (keyCode == KeyEvent.KEYCODE_VOLUME_UP) {
-            if (mode == GhostFixPreferences.MODE_KEYPAD && !upLongHandled) {
-                navigateSelection(-1);
-            }
-            upLongHandled = false;
-        } else {
-            if (mode == GhostFixPreferences.MODE_KEYPAD && !downLongHandled) {
-                navigateSelection(1);
-            } else if (mode == GhostFixPreferences.MODE_GUARDED_TOUCH && !downLongHandled) {
+    private void navigateActionMenu(int direction) {
+        actionMenuSelectedIndex += direction;
+        if (actionMenuSelectedIndex < 0) {
+            actionMenuSelectedIndex = ACTION_COUNT - 1;
+        } else if (actionMenuSelectedIndex >= ACTION_COUNT) {
+            actionMenuSelectedIndex = 0;
+        }
+        vibrate(25);
+        if (overlayView != null) {
+            overlayView.setActionMenuState(true, actionMenuSelectedIndex);
+        }
+    }
+
+    private void executeActionMenuSelection() {
+        switch (actionMenuSelectedIndex) {
+            case ACTION_BACK:
                 performGlobalAction(GLOBAL_ACTION_BACK);
-                vibrate(45);
-            }
-            downLongHandled = false;
+                break;
+            case ACTION_HOME:
+                performGlobalAction(GLOBAL_ACTION_HOME);
+                break;
+            case ACTION_RECENTS:
+                performGlobalAction(GLOBAL_ACTION_RECENTS);
+                break;
+            case ACTION_NOTIFICATIONS:
+                performGlobalAction(GLOBAL_ACTION_NOTIFICATIONS);
+                break;
+            case ACTION_QUICK_SETTINGS:
+                performGlobalAction(GLOBAL_ACTION_QUICK_SETTINGS);
+                break;
+            case ACTION_DISABLE:
+                GhostFixPreferences.setEmergencyEnabled(this, false);
+                break;
+        }
+        vibrate(50);
+    }
+
+    private void closeActionMenu() {
+        isActionMenuOpen = false;
+        if (overlayView != null) {
+            overlayView.setActionMenuState(false, 0);
         }
     }
 
     private void updateEmergencyState() {
-        isInVirtualMenu = false;
-        virtualSelectedIndex = 0;
         if (!isEmergencyEnabled()) {
             hideEmergencyOverlay();
             recycleKeypadNodes();
@@ -378,7 +379,6 @@ public class GhostFixAccessibilityService extends AccessibilityService
         }
 
         showEmergencyOverlay();
-        overlayView.setVirtualSelection(isInVirtualMenu, virtualSelectedIndex);
         int mode = currentMode();
         if (mode == GhostFixPreferences.MODE_GUARDED_TOUCH) {
             overlayView.setMode(mode, getString(R.string.overlay_touch_locked));
@@ -439,80 +439,29 @@ public class GhostFixAccessibilityService extends AccessibilityService
     }
 
     private void navigateSelection(int direction) {
-        if (isInVirtualMenu) {
-            int candidate = virtualSelectedIndex + direction;
-            if (candidate < 0) {
-                // Exit virtual menu to the bottom of the node list
-                if (keypadNodes.isEmpty()) {
-                    virtualSelectedIndex = 4;
-                } else {
-                    isInVirtualMenu = false;
-                    selectedIndex = keypadNodes.size() - 1;
-                    updateSelectedNode();
-                }
-            } else if (candidate >= 5) {
-                // Exit virtual menu to the top of the node list
-                if (keypadNodes.isEmpty()) {
-                    virtualSelectedIndex = 0;
-                } else {
-                    isInVirtualMenu = false;
-                    selectedIndex = 0;
-                    updateSelectedNode();
-                }
-            } else {
-                virtualSelectedIndex = candidate;
-                updateSelectedNode();
-            }
-            vibrate(25);
-            return;
-        }
-
-        // Screen node navigation
         if (keypadNodes.isEmpty()) {
             refreshKeypadNodes();
             if (keypadNodes.isEmpty()) {
-                // Enter virtual menu since there are no screen nodes
-                isInVirtualMenu = true;
-                virtualSelectedIndex = 0;
-                updateSelectedNode();
-                vibrate(25);
                 return;
             }
         }
 
         int candidate = selectedIndex + direction;
-        if (candidate < 0) {
-            // Enter virtual menu at the last option (Exit, index 4)
-            isInVirtualMenu = true;
-            virtualSelectedIndex = 4;
-            updateSelectedNode();
-            vibrate(25);
-            return;
-        } else if (candidate >= keypadNodes.size()) {
+        if (candidate < 0 || candidate >= keypadNodes.size()) {
             if (scrollScreen(direction > 0)) {
                 selectedIndex = direction > 0 ? 0 : Math.max(0, keypadNodes.size() - 1);
                 scheduleNodeRefresh(280);
                 vibrate(25);
                 return;
             }
-            // If cannot scroll, enter virtual menu at first option (Back, index 0)
-            isInVirtualMenu = true;
-            virtualSelectedIndex = 0;
-            updateSelectedNode();
-            vibrate(25);
-            return;
+            candidate = direction > 0 ? 0 : keypadNodes.size() - 1;
         }
-
         selectedIndex = candidate;
         updateSelectedNode();
         vibrate(25);
     }
 
     private void activateSelectedNode() {
-        if (isInVirtualMenu) {
-            executeVirtualAction(virtualSelectedIndex);
-            return;
-        }
         if (keypadNodes.isEmpty() || selectedIndex >= keypadNodes.size()) {
             refreshKeypadNodes();
             return;
@@ -547,9 +496,7 @@ public class GhostFixAccessibilityService extends AccessibilityService
 
         if (keypadNodes.isEmpty()) {
             selectedIndex = 0;
-            if (!isInVirtualMenu) {
-                overlayView.clearSelection();
-            }
+            overlayView.clearSelection();
             return;
         }
         selectedIndex = Math.max(0, Math.min(previousIndex, keypadNodes.size() - 1));
@@ -558,13 +505,6 @@ public class GhostFixAccessibilityService extends AccessibilityService
 
     private void updateSelectedNode() {
         if (overlayView == null) {
-            return;
-        }
-
-        overlayView.setVirtualSelection(isInVirtualMenu, virtualSelectedIndex);
-
-        if (isInVirtualMenu) {
-            overlayView.clearSelection();
             return;
         }
 
@@ -719,13 +659,8 @@ public class GhostFixAccessibilityService extends AccessibilityService
     private void resetKeyState() {
         volumeUpHeld = false;
         volumeDownHeld = false;
-        chordActive = false;
-        chordHandled = false;
-        upLongHandled = false;
-        downLongHandled = false;
-        handler.removeCallbacks(upLongRunnable);
-        handler.removeCallbacks(downLongRunnable);
-        handler.removeCallbacks(chordLongRunnable);
+        isActionMenuOpen = false;
+        handler.removeCallbacks(actionMenuTriggerRunnable);
     }
 
     private void recycleKeypadNodes() {
