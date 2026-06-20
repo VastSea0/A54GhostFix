@@ -38,7 +38,20 @@ public class GhostFixAccessibilityService extends AccessibilityService
     public static final int ACTION_NOTIFICATIONS = 3;
     public static final int ACTION_QUICK_SETTINGS = 4;
     public static final int ACTION_DISABLE = 5;
-    public static final int ACTION_COUNT = 6;
+    public static final int ACTION_LAUNCHER = 6;
+    public static final int ACTION_COUNT = 7;
+    
+    public static final String[] LAUNCHER_PACKAGES = {
+            "com.whatsapp",
+            "com.zhiliaoapp.musically", // TikTok
+            "com.instagram.android",
+            "com.sec.android.app.camera", // Samsung Camera
+            "com.google.android.youtube",
+            "com.android.chrome"
+    };
+    public static final String[] LAUNCHER_NAMES = {
+            "WhatsApp", "TikTok", "Instagram", "Kamera", "YouTube", "Chrome"
+    };
 
     private final Handler handler = new Handler(Looper.getMainLooper());
     private final List<AccessibilityNodeInfo> keypadNodes = new ArrayList<>();
@@ -54,6 +67,8 @@ public class GhostFixAccessibilityService extends AccessibilityService
     private boolean volumeDownHeld;
     private boolean isActionMenuOpen;
     private int actionMenuSelectedIndex;
+    private boolean isLauncherOpen;
+    private int launcherSelectedIndex;
     private int selectedIndex;
 
     private static final long CHORD_WINDOW_MS = 80;
@@ -278,7 +293,9 @@ public class GhostFixAccessibilityService extends AccessibilityService
 
         if (keyCode == KeyEvent.KEYCODE_VOLUME_UP) {
             latestNavRunnable = () -> {
-                if (isActionMenuOpen) {
+                if (isLauncherOpen) {
+                    navigateLauncher(-1);
+                } else if (isActionMenuOpen) {
                     navigateActionMenu(-1);
                 } else if (currentMode() == GhostFixPreferences.MODE_GUARDED_TOUCH) {
                     updateGuardState(true);
@@ -289,7 +306,9 @@ public class GhostFixAccessibilityService extends AccessibilityService
             handler.postDelayed(latestNavRunnable, CHORD_WINDOW_MS);
         } else {
             latestNavRunnable = () -> {
-                if (isActionMenuOpen) {
+                if (isLauncherOpen) {
+                    navigateLauncher(1);
+                } else if (isActionMenuOpen) {
                     navigateActionMenu(1);
                 } else {
                     navigateSelection(1);
@@ -315,7 +334,9 @@ public class GhostFixAccessibilityService extends AccessibilityService
         if (chordStarted) {
             if (!volumeUpHeld || !volumeDownHeld) {
                 if (!actionMenuOpenedThisChord) {
-                    if (isActionMenuOpen) {
+                    if (isLauncherOpen) {
+                        launchApp(LAUNCHER_PACKAGES[launcherSelectedIndex]);
+                    } else if (isActionMenuOpen) {
                         executeActionMenuSelection();
                         closeActionMenu();
                     } else {
@@ -324,6 +345,36 @@ public class GhostFixAccessibilityService extends AccessibilityService
                 }
                 chordStarted = false;
             }
+        }
+    }
+
+    private void navigateLauncher(int direction) {
+        launcherSelectedIndex += direction;
+        if (launcherSelectedIndex < 0) {
+            launcherSelectedIndex = LAUNCHER_PACKAGES.length - 1;
+        } else if (launcherSelectedIndex >= LAUNCHER_PACKAGES.length) {
+            launcherSelectedIndex = 0;
+        }
+        vibrate(25);
+        if (overlayView != null) {
+            overlayView.setLauncherState(true, launcherSelectedIndex);
+        }
+    }
+
+    private void launchApp(String packageName) {
+        vibrate(60);
+        android.content.Intent launchIntent = getPackageManager().getLaunchIntentForPackage(packageName);
+        if (launchIntent != null) {
+            launchIntent.addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK);
+            startActivity(launchIntent);
+        }
+        closeLauncher();
+    }
+
+    private void closeLauncher() {
+        isLauncherOpen = false;
+        if (overlayView != null) {
+            overlayView.setLauncherState(false, 0);
         }
     }
 
@@ -359,6 +410,13 @@ public class GhostFixAccessibilityService extends AccessibilityService
                 break;
             case ACTION_DISABLE:
                 GhostFixPreferences.setEmergencyEnabled(this, false);
+                break;
+            case ACTION_LAUNCHER:
+                isLauncherOpen = true;
+                launcherSelectedIndex = 0;
+                if (overlayView != null) {
+                    overlayView.setLauncherState(true, launcherSelectedIndex);
+                }
                 break;
         }
         vibrate(50);
@@ -660,6 +718,7 @@ public class GhostFixAccessibilityService extends AccessibilityService
         volumeUpHeld = false;
         volumeDownHeld = false;
         isActionMenuOpen = false;
+        isLauncherOpen = false;
         handler.removeCallbacks(actionMenuTriggerRunnable);
     }
 

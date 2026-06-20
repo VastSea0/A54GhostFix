@@ -34,9 +34,11 @@ final class EmergencyOverlayView extends View {
 
     private boolean isActionMenuOpen;
     private int actionMenuSelectedIndex;
+    private boolean isLauncherOpen;
+    private int launcherSelectedIndex;
 
     private final String[] ACTION_MENU_ITEMS = {
-            "Geri", "Ana Ekran", "Son Uygulamalar", "Bildirimler", "Hızlı Ayarlar", "Devre Dışı Bırak"
+            "Geri", "Ana Ekran", "Son Uygulamalar", "Bildirimler", "Hızlı Ayarlar", "Devre Dışı Bırak", "Başlatıcı"
     };
 
     EmergencyOverlayView(Context context, Listener listener) {
@@ -84,6 +86,12 @@ final class EmergencyOverlayView extends View {
         invalidate();
     }
 
+    void setLauncherState(boolean open, int selectedIndex) {
+        isLauncherOpen = open;
+        launcherSelectedIndex = selectedIndex;
+        invalidate();
+    }
+
     void setActionMenuState(boolean open, int selectedIndex) {
         isActionMenuOpen = open;
         actionMenuSelectedIndex = selectedIndex;
@@ -116,12 +124,17 @@ final class EmergencyOverlayView extends View {
     protected void onDraw(Canvas canvas) {
         super.onDraw(canvas);
         
-        if (isActionMenuOpen) {
-            shieldPaint.setColor(0x80000000);
+        if (isLauncherOpen || isActionMenuOpen) {
+            shieldPaint.setColor(isLauncherOpen ? 0xFA121415 : 0xB3000000);
         } else {
             shieldPaint.setColor(0x10000000);
         }
         canvas.drawRect(0, 0, getWidth(), getHeight(), shieldPaint);
+
+        if (isLauncherOpen) {
+            drawSkeuomorphicLauncher(canvas);
+            return;
+        }
 
         if (isActionMenuOpen) {
             drawActionMenu(canvas);
@@ -183,6 +196,129 @@ final class EmergencyOverlayView extends View {
         }
     }
 
+    
+    private void drawSkeuomorphicLauncher(Canvas canvas) {
+        int cols = 2;
+        int rows = 3;
+        float spacing = dp(24);
+        float itemWidth = (getWidth() - (spacing * 3)) / 2;
+        float itemHeight = dp(110);
+        
+        float totalWidth = (itemWidth * cols) + spacing;
+        float totalHeight = (itemHeight * rows) + (spacing * 2);
+        
+        float startX = (getWidth() - totalWidth) / 2 + (spacing / 2);
+        float startY = (getHeight() - totalHeight) / 2;
+        
+        // Draw physical grid base plate
+        RectF basePlate = new RectF(startX - dp(16), startY - dp(16), startX + totalWidth + dp(16), startY + totalHeight + dp(16));
+        Paint basePaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+        basePaint.setStyle(Paint.Style.FILL);
+        basePaint.setColor(0xFF1E2122);
+        basePaint.setShadowLayer(dp(20), 0, dp(10), 0x99000000);
+        canvas.drawRoundRect(basePlate, dp(24), dp(24), basePaint);
+
+        // Inner rim of base plate
+        Paint baseRim = new Paint(Paint.ANTI_ALIAS_FLAG);
+        baseRim.setStyle(Paint.Style.STROKE);
+        baseRim.setStrokeWidth(dp(1f));
+        baseRim.setColor(0x20FFFFFF);
+        canvas.drawRoundRect(basePlate, dp(24), dp(24), baseRim);
+
+        for (int i = 0; i < GhostFixAccessibilityService.LAUNCHER_PACKAGES.length; i++) {
+            if (i >= cols * rows) break;
+            
+            int row = i / cols;
+            int col = i % cols;
+            
+            float left = startX + (col * (itemWidth + spacing));
+            float top = startY + (row * (itemHeight + spacing));
+            RectF rect = new RectF(left, top, left + itemWidth, top + itemHeight);
+            
+            boolean isFocused = (i == launcherSelectedIndex);
+            
+            // 1. Drop shadow (stronger when not pressed, softer when pressed)
+            Paint shadowPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+            shadowPaint.setStyle(Paint.Style.FILL);
+            shadowPaint.setColor(0x00000000);
+            if (isFocused) {
+                shadowPaint.setShadowLayer(dp(2), 0, dp(1), 0x66000000); // Pressed in
+            } else {
+                shadowPaint.setShadowLayer(dp(8), 0, dp(6), 0x99000000); // Raised
+            }
+            canvas.drawRoundRect(rect, dp(16), dp(16), shadowPaint);
+            
+            // 2. Button Body (Gradient for 3D convex/concave)
+            Paint bodyPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+            bodyPaint.setStyle(Paint.Style.FILL);
+            android.graphics.LinearGradient bodyGrad;
+            if (isFocused) {
+                // Concave (pressed): dark top, light bottom
+                bodyGrad = new android.graphics.LinearGradient(
+                        0, rect.top, 0, rect.bottom,
+                        0xFF121415, 0xFF2A2D2E, android.graphics.Shader.TileMode.CLAMP);
+            } else {
+                // Convex (raised): light top, dark bottom
+                bodyGrad = new android.graphics.LinearGradient(
+                        0, rect.top, 0, rect.bottom,
+                        0xFF3A3E3F, 0xFF1C1E1F, android.graphics.Shader.TileMode.CLAMP);
+            }
+            bodyPaint.setShader(bodyGrad);
+            canvas.drawRoundRect(rect, dp(16), dp(16), bodyPaint);
+            
+            // 3. Top Bevel / Specular Highlight (Rim Light)
+            if (!isFocused) {
+                Paint bevelPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+                bevelPaint.setStyle(Paint.Style.STROKE);
+                bevelPaint.setStrokeWidth(dp(1.5f));
+                android.graphics.LinearGradient bevelGrad = new android.graphics.LinearGradient(
+                        0, rect.top, 0, rect.bottom,
+                        0x66FFFFFF, 0x00FFFFFF, android.graphics.Shader.TileMode.CLAMP);
+                bevelPaint.setShader(bevelGrad);
+                canvas.drawRoundRect(rect, dp(16), dp(16), bevelPaint);
+            } else {
+                // Inner dark shadow at top when pressed
+                Paint innerDark = new Paint(Paint.ANTI_ALIAS_FLAG);
+                innerDark.setStyle(Paint.Style.STROKE);
+                innerDark.setStrokeWidth(dp(2f));
+                android.graphics.LinearGradient innerGrad = new android.graphics.LinearGradient(
+                        0, rect.top, 0, rect.top + dp(10),
+                        0x80000000, 0x00000000, android.graphics.Shader.TileMode.CLAMP);
+                innerDark.setShader(innerGrad);
+                canvas.drawRoundRect(rect, dp(16), dp(16), innerDark);
+                
+                // Active indicator LED
+                Paint ledPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+                ledPaint.setStyle(Paint.Style.FILL);
+                ledPaint.setColor(0xFF4DB6AC); // Teal LED
+                ledPaint.setShadowLayer(dp(6), 0, 0, 0xFF4DB6AC);
+                canvas.drawCircle(rect.centerX(), rect.top + dp(16), dp(3), ledPaint);
+            }
+            
+            // 4. Engraved Text
+            String name = GhostFixAccessibilityService.LAUNCHER_NAMES[i];
+            textPaint.setTextSize(dp(16));
+            textPaint.setFakeBoldText(true);
+            textPaint.setTextAlign(Paint.Align.CENTER);
+            
+            float textY = rect.centerY() + dp(12);
+            
+            if (isFocused) {
+                // Active text (glowing slightly or bright)
+                textPaint.setColor(0xFFFFFFFF);
+                textPaint.setShadowLayer(dp(4), 0, 0, 0x66FFFFFF);
+            } else {
+                // Engraved text (dark fill, white bottom shadow)
+                textPaint.setColor(0xFF0A0C0C);
+                textPaint.setShadowLayer(dp(1), 0, dp(1), 0x4DFFFFFF);
+            }
+            canvas.drawText(name, rect.centerX(), textY, textPaint);
+            
+            // Reset shadow layer for next draw
+            textPaint.clearShadowLayer();
+        }
+    }
+
     private void drawActionMenu(Canvas canvas) {
         float itemHeight = dp(48);
         float menuWidth = dp(240);
@@ -227,7 +363,7 @@ final class EmergencyOverlayView extends View {
 
     @Override
     public boolean onTouchEvent(MotionEvent event) {
-        if (!guardedMode || !guardHeld || isActionMenuOpen) {
+        if (!guardedMode || !guardHeld || isActionMenuOpen || isLauncherOpen) {
             trackingTrustedTouch = false;
             return true;
         }
