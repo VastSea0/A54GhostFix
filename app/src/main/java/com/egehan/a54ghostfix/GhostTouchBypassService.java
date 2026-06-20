@@ -81,7 +81,8 @@ public class GhostTouchBypassService extends AccessibilityService implements Eme
     private boolean chordLongPressed = false;
 
     // Long press delays
-    private static final long LONG_PRESS_TIMEOUT_MS = 2000;
+    private static final long LONG_PRESS_TIMEOUT_MS = 1000; // 1s delay for Home/Back
+    private static final long CHORD_LONG_PRESS_TIMEOUT_MS = 2000; // 2s delay for Launcher chord
 
     // Runnables
     private final Runnable volumeUpLongPressRunnable = () -> {
@@ -106,10 +107,17 @@ public class GhostTouchBypassService extends AccessibilityService implements Eme
     };
 
     private final Runnable chordLongPressRunnable = () -> {
-        Log.d(TAG, "Volume Up + Down Long Press -> RECENTS");
+        Log.d(TAG, "Volume Up + Down Long Press -> OPEN LAUNCHER");
         vibrate(150);
         chordLongPressed = true;
-        performGlobalAction(GLOBAL_ACTION_RECENTS);
+        
+        // Open launcher tray and focus it directly
+        isTrayFocused = true;
+        selectedTrayIndex = 0;
+        if (overlayView != null) {
+            overlayView.setTrayExpanded(true);
+        }
+        updateSelectedNode();
     };
 
     private final Runnable repeatingBackspaceRunnable = new Runnable() {
@@ -284,7 +292,7 @@ public class GhostTouchBypassService extends AccessibilityService implements Eme
                     handler.post(repeatingBackspaceRunnable);
                     chordLongPressed = true;
                 } else {
-                    handler.postDelayed(chordLongPressRunnable, LONG_PRESS_TIMEOUT_MS);
+                    handler.postDelayed(chordLongPressRunnable, CHORD_LONG_PRESS_TIMEOUT_MS);
                 }
             } else {
                 handler.postDelayed(volumeUpLongPressRunnable, LONG_PRESS_TIMEOUT_MS);
@@ -305,7 +313,7 @@ public class GhostTouchBypassService extends AccessibilityService implements Eme
                     handler.post(repeatingBackspaceRunnable);
                     chordLongPressed = true;
                 } else {
-                    handler.postDelayed(chordLongPressRunnable, LONG_PRESS_TIMEOUT_MS);
+                    handler.postDelayed(chordLongPressRunnable, CHORD_LONG_PRESS_TIMEOUT_MS);
                 }
             } else {
                 handler.postDelayed(volumeDownLongPressRunnable, LONG_PRESS_TIMEOUT_MS);
