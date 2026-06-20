@@ -1,13 +1,23 @@
 package com.egehan.a54ghostfix;
 
+import android.animation.ValueAnimator;
 import android.content.Context;
 import android.graphics.Canvas;
 import android.graphics.Color;
+import android.graphics.LinearGradient;
 import android.graphics.Paint;
+import android.graphics.Path;
 import android.graphics.Rect;
 import android.graphics.RectF;
+import android.graphics.Shader;
+import android.graphics.Typeface;
 import android.view.MotionEvent;
 import android.view.View;
+import android.view.animation.DecelerateInterpolator;
+
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Locale;
 
 final class EmergencyOverlayView extends View {
     interface Listener {
@@ -23,28 +33,43 @@ final class EmergencyOverlayView extends View {
     private final Rect focusBounds = new Rect();
     private final float density;
 
-    private boolean guardedMode = true;
-    private boolean guardHeld;
-    private boolean trackingTrustedTouch;
-    private long guardStartedAt;
-    private float downX;
-    private float downY;
+    private boolean guardedMode = false;
+    private boolean guardHeld = false;
+    private boolean trackingTrustedTouch = false;
+    private long guardStartedAt = 0;
+    private float downX = 0;
+    private float downY = 0;
     private String statusText = "";
     private String selectionText = "";
 
-    private boolean isActionMenuOpen;
-    private int actionMenuSelectedIndex;
-    private boolean isLauncherOpen;
-    private int launcherSelectedIndex;
+    // Tray states
+    private float trayHeight;
+    private boolean isTrayExpanded = false;
+    private boolean isKeyboardMode = false;
+    private boolean isTrayPressed = false;
+    private int selectedTrayIndex = -1;
+    private List<GhostTouchBypassService.AppInfo> apps = new ArrayList<>();
 
-    private final String[] ACTION_MENU_ITEMS = {
-            "Geri", "Ana Ekran", "Son Uygulamalar", "Bildirimler", "Hızlı Ayarlar", "Devre Dışı Bırak", "Başlatıcı"
+    // Template menu states
+    private boolean isTemplateMenuOpen = false;
+    private int selectedTemplateIndex = 0;
+    private String[] templates = {
+            "Merhaba!",
+            "Tamam",
+            "Yoldayım, geliyorum.",
+            "Seni sonra arayacağım.",
+            "Neredesin?",
+            "Evet",
+            "Hayır"
     };
+
+    private ValueAnimator trayAnimator;
 
     EmergencyOverlayView(Context context, Listener listener) {
         super(context);
         this.listener = listener;
         density = getResources().getDisplayMetrics().density;
+        trayHeight = dp(8); // Extremely compact start
 
         setBackgroundColor(Color.TRANSPARENT);
         setClickable(true);
@@ -86,284 +111,358 @@ final class EmergencyOverlayView extends View {
         invalidate();
     }
 
-    void setLauncherState(boolean open, int selectedIndex) {
-        isLauncherOpen = open;
-        launcherSelectedIndex = selectedIndex;
+    void setTrayExpanded(boolean expanded) {
+        if (this.isTrayExpanded == expanded) return;
+        this.isTrayExpanded = expanded;
+
+        if (trayAnimator != null) {
+            trayAnimator.cancel();
+        }
+
+        float start = trayHeight;
+        float end = expanded ? dp(220) : dp(8); // Compact expanded height
+
+        trayAnimator = ValueAnimator.ofFloat(start, end);
+        trayAnimator.setDuration(180);
+        trayAnimator.setInterpolator(new DecelerateInterpolator());
+        trayAnimator.addUpdateListener(animation -> {
+            trayHeight = (float) animation.getAnimatedValue();
+            invalidate();
+        });
+        trayAnimator.start();
+    }
+
+    void setKeyboardMode(boolean keyboardMode) {
+        this.isKeyboardMode = keyboardMode;
         invalidate();
     }
 
-    void setActionMenuState(boolean open, int selectedIndex) {
-        isActionMenuOpen = open;
-        actionMenuSelectedIndex = selectedIndex;
+    void setSelectedTrayIndex(int index) {
+        this.selectedTrayIndex = index;
         invalidate();
     }
 
-    private void drawMinimalGlassPanel(Canvas canvas, RectF rect, boolean isFocused) {
-        // Shadow
-        Paint shadowPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
-        shadowPaint.setStyle(Paint.Style.FILL);
-        shadowPaint.setColor(0x00000000);
-        shadowPaint.setShadowLayer(dp(8), 0, dp(4), 0x40000000);
-        canvas.drawRoundRect(rect, dp(12), dp(12), shadowPaint);
+    void setTrayPressed(boolean pressed) {
+        this.isTrayPressed = pressed;
+        invalidate();
+    }
 
-        // Background
-        Paint bgPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
-        bgPaint.setStyle(Paint.Style.FILL);
-        bgPaint.setColor(isFocused ? 0xE61A1A1A : 0xCC121212);
-        canvas.drawRoundRect(rect, dp(12), dp(12), bgPaint);
+    void setApps(List<GhostTouchBypassService.AppInfo> appsList) {
+        this.apps = appsList;
+        invalidate();
+    }
 
-        // Border
-        Paint borderPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
-        borderPaint.setStyle(Paint.Style.STROKE);
-        borderPaint.setStrokeWidth(dp(1f));
-        borderPaint.setColor(isFocused ? 0x4DFFFFFF : 0x1AFFFFFF);
-        canvas.drawRoundRect(rect, dp(12), dp(12), borderPaint);
+    void setTemplatesOpen(boolean open, int selectedIndex) {
+        this.isTemplateMenuOpen = open;
+        this.selectedTemplateIndex = selectedIndex;
+        invalidate();
     }
 
     @Override
     protected void onDraw(Canvas canvas) {
         super.onDraw(canvas);
-        
-        if (isLauncherOpen || isActionMenuOpen) {
-            shieldPaint.setColor(isLauncherOpen ? 0xFA121415 : 0xB3000000);
+
+        if (isTrayExpanded) {
+            shieldPaint.setColor(0x80000000);
         } else {
             shieldPaint.setColor(0x10000000);
         }
         canvas.drawRect(0, 0, getWidth(), getHeight(), shieldPaint);
 
-        if (isLauncherOpen) {
-            drawSkeuomorphicLauncher(canvas);
-            return;
-        }
-
-        if (isActionMenuOpen) {
-            drawActionMenu(canvas);
-            return;
-        }
-
-        // 1. Status Pill
-        float pillWidth = dp(160);
-        float pillHeight = dp(32);
-        float pillLeft = (getWidth() - pillWidth) / 2;
-        RectF statusRect = new RectF(pillLeft, dp(16), pillLeft + pillWidth, dp(16) + pillHeight);
-        drawMinimalGlassPanel(canvas, statusRect, false);
-
-        Paint dotPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
-        dotPaint.setStyle(Paint.Style.FILL);
-        dotPaint.setColor(guardedMode ? 0xFFE57373 : 0xFF81C784); // Muted red/green
-        canvas.drawCircle(statusRect.left + dp(16), statusRect.centerY(), dp(4), dotPaint);
-
-        textPaint.setTextSize(dp(12));
-        textPaint.setFakeBoldText(true);
-        textPaint.setColor(0xE6FFFFFF);
-        textPaint.setTextAlign(Paint.Align.LEFT);
-        float statusY = statusRect.centerY() - ((textPaint.descent() + textPaint.ascent()) / 2);
-        String displayStatus = guardedMode ? "KORUMALI DOKUNMA" : "TUŞ TAKIMI KONTROLÜ";
-        canvas.drawText(displayStatus, statusRect.left + dp(28), statusY, textPaint);
-
-        // 2. Focus Ring
+        // 1. Focus Ring
         if (!guardedMode && !focusBounds.isEmpty()) {
             RectF highlight = new RectF(focusBounds);
             highlight.inset(-dp(4), -dp(4));
 
-            Paint focusFill = new Paint(Paint.ANTI_ALIAS_FLAG);
-            focusFill.setStyle(Paint.Style.FILL);
-            focusFill.setColor(0x1AFFFFFF);
-            canvas.drawRoundRect(highlight, dp(8), dp(8), focusFill);
-
             Paint focusStroke = new Paint(Paint.ANTI_ALIAS_FLAG);
             focusStroke.setStyle(Paint.Style.STROKE);
-            focusStroke.setStrokeWidth(dp(1.5f));
-            focusStroke.setColor(0xB3FFFFFF);
-            focusStroke.setShadowLayer(dp(2), 0, dp(1), 0x40000000);
+            focusStroke.setStrokeWidth(dp(2f));
+            focusStroke.setColor(0xFFE5C97A); // Gold accent
             canvas.drawRoundRect(highlight, dp(8), dp(8), focusStroke);
         }
 
-        // 3. Selection Text
-        if (!selectionText.isEmpty()) {
-            textPaint.setTextSize(dp(14));
-            textPaint.setFakeBoldText(false);
-            float width = Math.min(textPaint.measureText(selectionText) + dp(32), getWidth() - dp(32));
-            float left = (getWidth() - width) / 2;
-            RectF bottomRect = new RectF(left, getHeight() - dp(56), left + width, getHeight() - dp(16));
-            drawMinimalGlassPanel(canvas, bottomRect, false);
+        // 2. Bottom Tray
+        drawBottomTray(canvas);
+    }
 
-            String visible = ellipsize(selectionText, getWidth() - dp(64));
-            textPaint.setColor(0xE6FFFFFF);
-            textPaint.setTextAlign(Paint.Align.CENTER);
-            float textY = bottomRect.centerY() - ((textPaint.descent() + textPaint.ascent()) / 2);
-            canvas.drawText(visible, bottomRect.centerX(), textY, textPaint);
+    private void drawBottomTray(Canvas canvas) {
+        float topY = getHeight() - trayHeight;
+        RectF trayRect = new RectF(0, topY, getWidth(), getHeight());
+
+        // Background (#2C2C2E surface)
+        Paint bgPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+        bgPaint.setStyle(Paint.Style.FILL);
+        bgPaint.setColor(0xFF2C2C2E);
+        
+        Path path = new Path();
+        float[] radii = {dp(12), dp(12), dp(12), dp(12), 0, 0, 0, 0};
+        path.addRoundRect(trayRect, radii, Path.Direction.CW);
+        canvas.drawPath(path, bgPaint);
+
+        // Reflection Line (#5A5A5C)
+        Paint borderPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+        borderPaint.setStyle(Paint.Style.STROKE);
+        borderPaint.setStrokeWidth(dp(1));
+        borderPaint.setColor(0xFF5A5A5C);
+        canvas.drawLine(0, topY, getWidth(), topY, borderPaint);
+
+        if (trayHeight < dp(40)) {
+            drawMinimizedDisplay(canvas, trayRect);
+            return;
+        }
+
+        // LCD status
+        float lcdHeight = dp(40);
+        float lcdMargin = dp(8);
+        RectF lcdRect = new RectF(lcdMargin, topY + lcdMargin, getWidth() - lcdMargin, topY + lcdMargin + lcdHeight);
+        drawLCDDisplay(canvas, lcdRect);
+
+        float contentTop = lcdRect.bottom + dp(8);
+        float contentHeight = getHeight() - contentTop;
+
+        if (isTemplateMenuOpen) {
+            drawTemplatesList(canvas, contentTop, contentHeight);
+        } else if (isKeyboardMode) {
+            drawKeyboardButtons(canvas, contentTop, contentHeight);
+        } else {
+            drawAppsGrid(canvas, contentTop, contentHeight);
         }
     }
 
-    
-    private void drawSkeuomorphicLauncher(Canvas canvas) {
-        int cols = 2;
-        int rows = 3;
-        float spacing = dp(24);
-        float itemWidth = (getWidth() - (spacing * 3)) / 2;
-        float itemHeight = dp(110);
-        
-        float totalWidth = (itemWidth * cols) + spacing;
-        float totalHeight = (itemHeight * rows) + (spacing * 2);
-        
-        float startX = (getWidth() - totalWidth) / 2 + (spacing / 2);
-        float startY = (getHeight() - totalHeight) / 2;
-        
-        // Draw physical grid base plate
-        RectF basePlate = new RectF(startX - dp(16), startY - dp(16), startX + totalWidth + dp(16), startY + totalHeight + dp(16));
-        Paint basePaint = new Paint(Paint.ANTI_ALIAS_FLAG);
-        basePaint.setStyle(Paint.Style.FILL);
-        basePaint.setColor(0xFF1E2122);
-        basePaint.setShadowLayer(dp(20), 0, dp(10), 0x99000000);
-        canvas.drawRoundRect(basePlate, dp(24), dp(24), basePaint);
+    private void drawMinimizedDisplay(Canvas canvas, RectF rect) {
+        // Draw thin premium gold line at the top of the tray when minimized - Extremely thin & non-blocking
+        Paint linePaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+        linePaint.setColor(0xFFE5C97A);
+        linePaint.setStrokeWidth(dp(2));
+        canvas.drawLine(rect.left, rect.top + dp(1), rect.right, rect.top + dp(1), linePaint);
+    }
 
-        // Inner rim of base plate
-        Paint baseRim = new Paint(Paint.ANTI_ALIAS_FLAG);
-        baseRim.setStyle(Paint.Style.STROKE);
-        baseRim.setStrokeWidth(dp(1f));
-        baseRim.setColor(0x20FFFFFF);
-        canvas.drawRoundRect(basePlate, dp(24), dp(24), baseRim);
+    private void drawLCDDisplay(Canvas canvas, RectF rect) {
+        Paint bgPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+        bgPaint.setColor(0xFF1A1F1A);
+        canvas.drawRoundRect(rect, dp(4), dp(4), bgPaint);
 
-        for (int i = 0; i < GhostTouchBypassService.LAUNCHER_PACKAGES.length; i++) {
-            if (i >= cols * rows) break;
+        Paint textP = new Paint(Paint.ANTI_ALIAS_FLAG);
+        textP.setColor(0xFFC8D8A8);
+        textP.setTextSize(dp(11));
+        textP.setTypeface(Typeface.MONOSPACE);
+        textP.setTextAlign(Paint.Align.LEFT);
+
+        float textY = rect.centerY() - ((textP.descent() + textP.ascent()) / 2);
+        String label = isTemplateMenuOpen ? "SABLON SECIM MENUSU" : (isKeyboardMode ? "METIN GIRISI: AKTIF" : "UYGULAMA BASLATICI");
+        canvas.drawText("> " + label, rect.left + dp(8), textY, textP);
+
+        if (!selectionText.isEmpty() && !isKeyboardMode && !isTemplateMenuOpen) {
+            textP.setTextAlign(Paint.Align.RIGHT);
+            String displayVal = selectionText;
+            if (displayVal.length() > 20) displayVal = displayVal.substring(0, 18) + "...";
+            canvas.drawText(displayVal.toUpperCase(Locale.ROOT), rect.right - dp(8), textY, textP);
+        }
+    }
+
+    private void drawKeyboardButtons(Canvas canvas, float top, float height) {
+        String[] buttons = {"SIL", "BOSLUK", "ENTER", "SABLON", "KAPAT"};
+        float spacing = dp(8);
+        float btnWidth = (getWidth() - spacing * 6) / 5;
+        float btnHeight = dp(50);
+
+        for (int i = 0; i < buttons.length; i++) {
+            float left = spacing + i * (btnWidth + spacing);
+            RectF rect = new RectF(left, top + dp(10), left + btnWidth, top + dp(10) + btnHeight);
             
+            boolean isFocused = (selectedTrayIndex == i);
+            boolean isPressed = isFocused && isTrayPressed;
+            drawSkeuomorphicButton(canvas, rect, buttons[i], isFocused, isPressed);
+        }
+    }
+
+    private void drawAppsGrid(Canvas canvas, float top, float height) {
+        if (apps.isEmpty()) {
+            Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
+            paint.setColor(0xFF8E8E93);
+            paint.setTextSize(dp(14));
+            paint.setTextAlign(Paint.Align.CENTER);
+            canvas.drawText("Uygulama Bulunamadı", getWidth() / 2f, top + dp(40), paint);
+            return;
+        }
+
+        int cols = 4;
+        int rows = 2;
+        int maxApps = cols * rows;
+
+        int activeAppIndex = -1;
+        if (selectedTrayIndex >= 0) {
+            activeAppIndex = selectedTrayIndex;
+        }
+
+        int pageStart = 0;
+        if (activeAppIndex >= 0) {
+            pageStart = (activeAppIndex / maxApps) * maxApps;
+        }
+
+        float spacingX = dp(12);
+        float spacingY = dp(10);
+        float itemWidth = (getWidth() - spacingX * (cols + 1)) / cols;
+        float itemHeight = dp(65);
+
+        Paint textP = new Paint(Paint.ANTI_ALIAS_FLAG);
+        textP.setColor(0xFFF5F5F5);
+        textP.setTextSize(dp(9));
+        textP.setTextAlign(Paint.Align.CENTER);
+
+        for (int i = 0; i < maxApps; i++) {
+            int appIndex = pageStart + i;
+            if (appIndex >= apps.size()) break;
+
+            GhostTouchBypassService.AppInfo app = apps.get(appIndex);
             int row = i / cols;
             int col = i % cols;
-            
-            float left = startX + (col * (itemWidth + spacing));
-            float top = startY + (row * (itemHeight + spacing));
-            RectF rect = new RectF(left, top, left + itemWidth, top + itemHeight);
-            
-            boolean isFocused = (i == launcherSelectedIndex);
-            
-            // 1. Drop shadow (stronger when not pressed, softer when pressed)
-            Paint shadowPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
-            shadowPaint.setStyle(Paint.Style.FILL);
-            shadowPaint.setColor(0x00000000);
+
+            float x = spacingX + col * (itemWidth + spacingX);
+            float y = top + spacingY + row * (itemHeight + spacingY);
+
+            RectF rect = new RectF(x, y, x + itemWidth, y + itemHeight);
+
+            boolean isFocused = (appIndex == activeAppIndex);
+            boolean isPressed = isFocused && isTrayPressed;
+
+            if (isPressed) {
+                rect.inset(rect.width() * 0.015f, rect.height() * 0.015f);
+            }
+
             if (isFocused) {
-                shadowPaint.setShadowLayer(dp(2), 0, dp(1), 0x66000000); // Pressed in
+                Paint borderP = new Paint(Paint.ANTI_ALIAS_FLAG);
+                borderP.setStyle(Paint.Style.STROKE);
+                borderP.setStrokeWidth(dp(2));
+                borderP.setColor(0xFFE5C97A);
+                canvas.drawRoundRect(rect, dp(6), dp(6), borderP);
             } else {
-                shadowPaint.setShadowLayer(dp(8), 0, dp(6), 0x99000000); // Raised
+                Paint bgP = new Paint(Paint.ANTI_ALIAS_FLAG);
+                bgP.setColor(0xFF3A3A3C);
+                canvas.drawRoundRect(rect, dp(6), dp(6), bgP);
             }
-            canvas.drawRoundRect(rect, dp(16), dp(16), shadowPaint);
-            
-            // 2. Button Body (Gradient for 3D convex/concave)
-            Paint bodyPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
-            bodyPaint.setStyle(Paint.Style.FILL);
-            android.graphics.LinearGradient bodyGrad;
-            if (isFocused) {
-                // Concave (pressed): dark top, light bottom
-                bodyGrad = new android.graphics.LinearGradient(
-                        0, rect.top, 0, rect.bottom,
-                        0xFF121415, 0xFF2A2D2E, android.graphics.Shader.TileMode.CLAMP);
-            } else {
-                // Convex (raised): light top, dark bottom
-                bodyGrad = new android.graphics.LinearGradient(
-                        0, rect.top, 0, rect.bottom,
-                        0xFF3A3E3F, 0xFF1C1E1F, android.graphics.Shader.TileMode.CLAMP);
+
+            if (app.icon != null) {
+                int iconSize = (int) dp(32);
+                int iconLeft = (int) (rect.centerX() - iconSize / 2f);
+                int iconTop = (int) (rect.top + dp(6));
+                app.icon.setBounds(iconLeft, iconTop, iconLeft + iconSize, iconTop + iconSize);
+                app.icon.draw(canvas);
             }
-            bodyPaint.setShader(bodyGrad);
-            canvas.drawRoundRect(rect, dp(16), dp(16), bodyPaint);
-            
-            // 3. Top Bevel / Specular Highlight (Rim Light)
-            if (!isFocused) {
-                Paint bevelPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
-                bevelPaint.setStyle(Paint.Style.STROKE);
-                bevelPaint.setStrokeWidth(dp(1.5f));
-                android.graphics.LinearGradient bevelGrad = new android.graphics.LinearGradient(
-                        0, rect.top, 0, rect.bottom,
-                        0x66FFFFFF, 0x00FFFFFF, android.graphics.Shader.TileMode.CLAMP);
-                bevelPaint.setShader(bevelGrad);
-                canvas.drawRoundRect(rect, dp(16), dp(16), bevelPaint);
-            } else {
-                // Inner dark shadow at top when pressed
-                Paint innerDark = new Paint(Paint.ANTI_ALIAS_FLAG);
-                innerDark.setStyle(Paint.Style.STROKE);
-                innerDark.setStrokeWidth(dp(2f));
-                android.graphics.LinearGradient innerGrad = new android.graphics.LinearGradient(
-                        0, rect.top, 0, rect.top + dp(10),
-                        0x80000000, 0x00000000, android.graphics.Shader.TileMode.CLAMP);
-                innerDark.setShader(innerGrad);
-                canvas.drawRoundRect(rect, dp(16), dp(16), innerDark);
-                
-                // Active indicator LED
-                Paint ledPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
-                ledPaint.setStyle(Paint.Style.FILL);
-                ledPaint.setColor(0xFF4DB6AC); // Teal LED
-                ledPaint.setShadowLayer(dp(6), 0, 0, 0xFF4DB6AC);
-                canvas.drawCircle(rect.centerX(), rect.top + dp(16), dp(3), ledPaint);
+
+            String name = app.name;
+            if (name.length() > 9) {
+                name = name.substring(0, 7) + "..";
             }
-            
-            // 4. Engraved Text
-            String name = GhostTouchBypassService.LAUNCHER_NAMES[i];
-            textPaint.setTextSize(dp(16));
-            textPaint.setFakeBoldText(true);
-            textPaint.setTextAlign(Paint.Align.CENTER);
-            
-            float textY = rect.centerY() + dp(12);
-            
-            if (isFocused) {
-                // Active text (glowing slightly or bright)
-                textPaint.setColor(0xFFFFFFFF);
-                textPaint.setShadowLayer(dp(4), 0, 0, 0x66FFFFFF);
-            } else {
-                // Engraved text (dark fill, white bottom shadow)
-                textPaint.setColor(0xFF0A0C0C);
-                textPaint.setShadowLayer(dp(1), 0, dp(1), 0x4DFFFFFF);
-            }
-            canvas.drawText(name, rect.centerX(), textY, textPaint);
-            
-            // Reset shadow layer for next draw
-            textPaint.clearShadowLayer();
+            canvas.drawText(name.toUpperCase(Locale.ROOT), rect.centerX(), rect.bottom - dp(6), textP);
         }
     }
 
-    private void drawActionMenu(Canvas canvas) {
-        float itemHeight = dp(48);
-        float menuWidth = dp(240);
-        float menuHeight = ACTION_MENU_ITEMS.length * itemHeight + dp(16);
-        float left = (getWidth() - menuWidth) / 2;
-        float top = (getHeight() - menuHeight) / 2;
+    private void drawTemplatesList(Canvas canvas, float top, float height) {
+        float itemHeight = dp(26);
+        float spacing = dp(4);
+        int maxItems = 4;
 
-        RectF menuRect = new RectF(left, top, left + menuWidth, top + menuHeight);
-        drawMinimalGlassPanel(canvas, menuRect, false);
+        int pageStart = (selectedTemplateIndex / maxItems) * maxItems;
 
-        textPaint.setTextAlign(Paint.Align.CENTER);
-        textPaint.setFakeBoldText(true);
+        Paint textP = new Paint(Paint.ANTI_ALIAS_FLAG);
+        textP.setTextSize(dp(12));
+        textP.setTextAlign(Paint.Align.CENTER);
 
-        for (int i = 0; i < ACTION_MENU_ITEMS.length; i++) {
-            float itemTop = top + dp(8) + (i * itemHeight);
-            RectF itemRect = new RectF(left + dp(8), itemTop, left + menuWidth - dp(8), itemTop + itemHeight);
+        for (int i = 0; i < maxItems; i++) {
+            int index = pageStart + i;
+            if (index >= templates.length) break;
 
-            if (i == actionMenuSelectedIndex) {
-                Paint highlightPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
-                highlightPaint.setStyle(Paint.Style.FILL);
-                highlightPaint.setColor(0x26FFFFFF);
-                canvas.drawRoundRect(itemRect, dp(8), dp(8), highlightPaint);
+            float y = top + dp(6) + i * (itemHeight + spacing);
+            RectF rect = new RectF(dp(16), y, getWidth() - dp(16), y + itemHeight);
 
-                Paint borderPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
-                borderPaint.setStyle(Paint.Style.STROKE);
-                borderPaint.setStrokeWidth(dp(1f));
-                borderPaint.setColor(0x4DFFFFFF);
-                canvas.drawRoundRect(itemRect, dp(8), dp(8), borderPaint);
-                
-                textPaint.setColor(0xFFFFFFFF);
-                textPaint.setTextSize(dp(16));
-            } else {
-                textPaint.setColor(0xB3FFFFFF);
-                textPaint.setTextSize(dp(14));
-                textPaint.setFakeBoldText(false);
+            boolean isFocused = (index == selectedTemplateIndex);
+            boolean isPressed = isFocused && isTrayPressed;
+
+            if (isPressed) {
+                rect.inset(rect.width() * 0.015f, rect.height() * 0.015f);
             }
 
-            float textY = itemRect.centerY() - ((textPaint.descent() + textPaint.ascent()) / 2);
-            canvas.drawText(ACTION_MENU_ITEMS[i], itemRect.centerX(), textY, textPaint);
+            Paint bgP = new Paint(Paint.ANTI_ALIAS_FLAG);
+            bgP.setStyle(Paint.Style.FILL);
+            bgP.setColor(isFocused ? 0xFF3A3A3C : 0xFF2C2C2E);
+            canvas.drawRoundRect(rect, dp(6), dp(6), bgP);
+
+            if (isFocused) {
+                Paint borderP = new Paint(Paint.ANTI_ALIAS_FLAG);
+                borderP.setStyle(Paint.Style.STROKE);
+                borderP.setStrokeWidth(dp(1.5f));
+                borderP.setColor(0xFFE5C97A);
+                canvas.drawRoundRect(rect, dp(6), dp(6), borderP);
+                textP.setColor(0xFFE5C97A);
+            } else {
+                textP.setColor(0xFFF5F5F5);
+            }
+
+            float textY = rect.centerY() - ((textP.descent() + textP.ascent()) / 2f);
+            canvas.drawText(templates[index], rect.centerX(), textY, textP);
         }
+    }
+
+    private void drawSkeuomorphicButton(Canvas canvas, RectF rect, String text, boolean isFocused, boolean isPressed) {
+        if (isPressed) {
+            rect.inset(rect.width() * 0.015f, rect.height() * 0.015f);
+        }
+
+        Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
+        paint.setStyle(Paint.Style.FILL);
+        LinearGradient shader;
+        if (isPressed) {
+            shader = new LinearGradient(rect.left, rect.top, rect.left, rect.bottom, 0xFF3A3A3C, 0xFF4A4A4C, Shader.TileMode.CLAMP);
+        } else {
+            shader = new LinearGradient(rect.left, rect.top, rect.left, rect.bottom, 0xFF48484A, 0xFF3A3A3C, Shader.TileMode.CLAMP);
+        }
+        paint.setShader(shader);
+        canvas.drawRoundRect(rect, dp(6), dp(6), paint);
+
+        Paint borderPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+        borderPaint.setStyle(Paint.Style.STROKE);
+
+        if (isFocused) {
+            borderPaint.setStrokeWidth(dp(2));
+            borderPaint.setColor(0xFFE5C97A);
+            canvas.drawRoundRect(rect, dp(6), dp(6), borderPaint);
+        } else {
+            borderPaint.setStrokeWidth(dp(1));
+            
+            borderPaint.setColor(0xFF1C1C1E);
+            Path darkPath = new Path();
+            darkPath.moveTo(rect.left + dp(6), rect.bottom);
+            darkPath.lineTo(rect.right - dp(6), rect.bottom);
+            darkPath.quadTo(rect.right, rect.bottom, rect.right, rect.bottom - dp(6));
+            darkPath.lineTo(rect.right, rect.top + dp(6));
+            canvas.drawPath(darkPath, borderPaint);
+
+            borderPaint.setColor(0xFF5A5A5C);
+            Path lightPath = new Path();
+            lightPath.moveTo(rect.right - dp(6), rect.top);
+            lightPath.lineTo(rect.left + dp(6), rect.top);
+            lightPath.quadTo(rect.left, rect.top, rect.left, rect.top + dp(6));
+            lightPath.lineTo(rect.left, rect.bottom - dp(6));
+            canvas.drawPath(lightPath, borderPaint);
+        }
+
+        Paint labelPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+        labelPaint.setColor(0xFFF5F5F5);
+        labelPaint.setTextSize(dp(11));
+        labelPaint.setTypeface(Typeface.create(Typeface.SANS_SERIF, Typeface.NORMAL));
+        labelPaint.setTextAlign(Paint.Align.CENTER);
+
+        float textY = rect.centerY() - ((labelPaint.descent() + labelPaint.ascent()) / 2);
+        if (isPressed) {
+            textY += dp(1);
+        }
+        canvas.drawText(text.toUpperCase(Locale.ROOT), rect.centerX(), textY, labelPaint);
     }
 
     @Override
     public boolean onTouchEvent(MotionEvent event) {
-        if (!guardedMode || !guardHeld || isActionMenuOpen || isLauncherOpen) {
+        if (!guardedMode || !guardHeld || isTrayExpanded) {
             trackingTrustedTouch = false;
             return true;
         }
@@ -407,18 +506,6 @@ final class EmergencyOverlayView extends View {
             default:
                 return true;
         }
-    }
-
-    private String ellipsize(String text, float maxWidth) {
-        if (textPaint.measureText(text) <= maxWidth) {
-            return text;
-        }
-        String suffix = "...";
-        int end = text.length();
-        while (end > 0 && textPaint.measureText(text.substring(0, end) + suffix) > maxWidth) {
-            end--;
-        }
-        return text.substring(0, end) + suffix;
     }
 
     private float dp(float value) {
