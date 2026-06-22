@@ -1,6 +1,9 @@
 package com.egehan.a54ghostfix;
 
+import android.annotation.SuppressLint;
+import android.app.PendingIntent;
 import android.content.Intent;
+import android.os.Build;
 import android.provider.Settings;
 import android.service.quicksettings.Tile;
 import android.service.quicksettings.TileService;
@@ -13,12 +16,23 @@ public class EmergencyControlTileService extends TileService {
     }
 
     @Override
+    @SuppressLint("StartActivityAndCollapseDeprecated")
     public void onClick() {
         super.onClick();
         if (!EmergencyControl.isAccessibilityServiceEnabled(this)) {
             Intent intent = new Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)
                     .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-            startActivityAndCollapse(intent);
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+                PendingIntent pendingIntent = PendingIntent.getActivity(
+                        this,
+                        0,
+                        intent,
+                        PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE
+                );
+                startActivityAndCollapse(pendingIntent);
+            } else {
+                startActivityAndCollapse(intent);
+            }
             return;
         }
         EmergencyControl.toggle(this);

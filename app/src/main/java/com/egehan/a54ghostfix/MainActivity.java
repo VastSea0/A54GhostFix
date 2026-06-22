@@ -22,6 +22,7 @@ public class MainActivity extends Activity {
     private MaterialButton accessibilityButton;
     private MaterialButton sideKeyButton;
     private MaterialButton emergencyButton;
+    private MaterialButton emergencyLauncherButton;
     private MaterialButtonToggleGroup emergencyModeGroup;
     private SwitchMaterial shakeSwitch;
     private SwitchMaterial volumeUpSwitch;
@@ -45,6 +46,7 @@ public class MainActivity extends Activity {
         accessibilityButton = findViewById(R.id.accessibility_button);
         sideKeyButton = findViewById(R.id.side_key_button);
         emergencyButton = findViewById(R.id.emergency_button);
+        emergencyLauncherButton = findViewById(R.id.emergency_launcher_button);
         emergencyModeGroup = findViewById(R.id.emergency_mode_group);
         shakeSwitch = findViewById(R.id.shake_switch);
         volumeUpSwitch = findViewById(R.id.volume_up_switch);
@@ -57,6 +59,7 @@ public class MainActivity extends Activity {
         accessibilityButton.setOnClickListener(view -> openAccessibilitySettings());
         sideKeyButton.setOnClickListener(view -> openSideKeySettings());
         emergencyButton.setOnClickListener(view -> toggleEmergencyControl());
+        emergencyLauncherButton.setOnClickListener(view -> openEmergencyLauncher());
         emergencyModeGroup.addOnButtonCheckedListener((group, checkedId, isChecked) -> {
             if (!isChecked) {
                 return;
@@ -149,6 +152,16 @@ public class MainActivity extends Activity {
         emergencyButton.setText(GhostFixPreferences.emergencyEnabled(this)
                 ? R.string.stop_emergency_control
                 : R.string.start_emergency_control);
+    }
+
+    private void openEmergencyLauncher() {
+        if (!EmergencyControl.isAccessibilityServiceEnabled(this)) {
+            openAccessibilitySettings();
+            return;
+        }
+        GhostFixPreferences.requestEmergencyLauncher(this);
+        GhostTouchBypassService.openEmergencyLauncherIfRunning();
+        moveTaskToBack(true);
     }
 
     private void openSideKeySettings() {

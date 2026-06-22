@@ -135,6 +135,15 @@
                     android:layout_marginTop="12dp"
                     android:text="@string/start_emergency_control"
                     app:cornerRadius="18dp" />
+
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/emergency_launcher_button"
+                    style="@style/Widget.Material3.Button.OutlinedButton"
+                    android:layout_width="match_parent"
+                    android:layout_height="52dp"
+                    android:layout_marginTop="8dp"
+                    android:text="@string/open_emergency_launcher"
+                    app:icon="@android:drawable/ic_menu_view" />
             </LinearLayout>
         </com.google.android.material.card.MaterialCardView>
 

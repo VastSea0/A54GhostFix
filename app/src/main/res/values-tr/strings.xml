@@ -31,13 +31,42 @@
     <string name="keypad_mode">Tuş Takımı</string>
     <string name="start_emergency_control">Acil Durum Kontrolünü Başlat</string>
     <string name="stop_emergency_control">Acil Durum Kontrolünü Durdur</string>
+    <string name="open_emergency_launcher">Acil Başlatıcıyı Aç</string>
     <string name="emergency_action_label">Acil Durum Kontrolü</string>
+    <string name="emergency_launcher_action_label">Acil Başlatıcı</string>
     <string name="emergency_tile_label">Dokunma Kalkanı</string>
     <string name="emergency_tile_active">Dokunma Kalkanı Açık</string>
     <string name="overlay_touch_locked">KORUMALI DOKUNMA · KİLİTLİ</string>
     <string name="overlay_touch_armed">KORUMALI DOKUNMA · HAZIR</string>
     <string name="overlay_keypad_mode">TUŞ TAKIMI KONTROLÜ</string>
     <string name="overlay_selected_item">Seçili kontrol</string>
+    <string name="overlay_emergency_launcher">ACİL BAŞLATICI</string>
+    <string name="overlay_text_controls">METİN KONTROLLERİ</string>
+    <string name="overlay_quick_messages">HAZIR MESAJLAR</string>
+    <string name="overlay_no_apps">Başlatılabilir uygulama bulunamadı</string>
+    <string name="overlay_instagram_tab">Instagram sekmesi %1$d</string>
+    <string-array name="overlay_gesture_names">
+        <item>Yukarı</item>
+        <item>Aşağı</item>
+        <item>Sola</item>
+        <item>Sağa</item>
+    </string-array>
+    <string-array name="overlay_keyboard_actions">
+        <item>SİL</item>
+        <item>BOŞLUK</item>
+        <item>ENTER</item>
+        <item>MESAJ</item>
+        <item>KAPAT</item>
+    </string-array>
+    <string-array name="overlay_quick_message_values">
+        <item>Merhaba!</item>
+        <item>Tamam</item>
+        <item>Yoldayım, geliyorum.</item>
+        <item>Seni sonra arayacağım.</item>
+        <item>Neredesin?</item>
+        <item>Evet</item>
+        <item>Hayır</item>
+    </string-array>
     <string name="accessibility_service_label">A54 Ghost Fix Tetikleyici</string>
     <string name="accessibility_service_description">Dokunmatik resetini çalıştırır ve güvenilmeyen ekran dokunmalarını engelleyen donanım tuşlu acil kontrol modu sağlar.</string>
     <string name="widget_compact">Ghost Fix</string>

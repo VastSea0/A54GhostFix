@@ -31,13 +31,42 @@
     <string name="keypad_mode">Keypad</string>
     <string name="start_emergency_control">Start Emergency Control</string>
     <string name="stop_emergency_control">Stop Emergency Control</string>
+    <string name="open_emergency_launcher">Open Emergency Launcher</string>
     <string name="emergency_action_label">Emergency Control</string>
+    <string name="emergency_launcher_action_label">Emergency Launcher</string>
     <string name="emergency_tile_label">Touch Shield</string>
     <string name="emergency_tile_active">Touch Shield On</string>
     <string name="overlay_touch_locked">GUARDED TOUCH · LOCKED</string>
     <string name="overlay_touch_armed">GUARDED TOUCH · ARMED</string>
     <string name="overlay_keypad_mode">KEYPAD CONTROL</string>
     <string name="overlay_selected_item">Selected control</string>
+    <string name="overlay_emergency_launcher">EMERGENCY LAUNCHER</string>
+    <string name="overlay_text_controls">TEXT CONTROLS</string>
+    <string name="overlay_quick_messages">QUICK MESSAGES</string>
+    <string name="overlay_no_apps">No launchable apps found</string>
+    <string name="overlay_instagram_tab">Instagram tab %1$d</string>
+    <string-array name="overlay_gesture_names">
+        <item>Up</item>
+        <item>Down</item>
+        <item>Left</item>
+        <item>Right</item>
+    </string-array>
+    <string-array name="overlay_keyboard_actions">
+        <item>DELETE</item>
+        <item>SPACE</item>
+        <item>ENTER</item>
+        <item>MESSAGE</item>
+        <item>CLOSE</item>
+    </string-array>
+    <string-array name="overlay_quick_message_values">
+        <item>Hello!</item>
+        <item>Okay</item>
+        <item>I am on my way.</item>
+        <item>I will call you later.</item>
+        <item>Where are you?</item>
+        <item>Yes</item>
+        <item>No</item>
+    </string-array>
     <string name="accessibility_service_label">A54 Ghost Fix Trigger</string>
     <string name="accessibility_service_description">Runs the touch reset and provides a hardware-key emergency control mode that blocks untrusted screen touches.</string>
     <string name="widget_compact">Ghost Fix</string>
