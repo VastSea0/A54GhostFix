@@ -36,6 +36,8 @@ This turns the touch module off and back on without rebooting the phone.
 - Shizuku-independent emergency touch shield
 - Guarded Touch: hold Volume Up to authorize a screen tap or swipe
 - Keypad control for TV-style navigation without using the touchscreen
+- Emergency launcher that automatically lists every launchable installed app
+- Four-direction swipe actions and an Instagram navigation fallback
 - Optional Accessibility Service triggers for Volume Up, Volume Down, and shake gestures
 - Samsung Side key launcher shortcut where the device firmware exposes custom Side key apps
 - Bilingual interface: English and Turkish
@@ -71,18 +73,25 @@ Emergency Control does not need Shizuku, ADB, Wi-Fi debugging, or root after the
 - Short Volume Down performs Back.
 - Long Volume Down performs Home.
 - Press both volume keys briefly to enter Keypad mode.
-- Hold both volume keys for about two seconds to exit Emergency Control.
+- Hold Volume Down for Home.
+- Hold both volume keys for about two seconds to open the Emergency Launcher.
+- Keep holding both keys for about three seconds to exit Emergency Control.
 
 **Keypad**
 
 - Volume Up selects the previous visible control.
 - Volume Down selects the next visible control.
 - Press both volume keys briefly to activate the selected control.
-- Long Volume Up performs Back.
-- Long Volume Down performs Home.
-- Hold both volume keys for about two seconds to exit Emergency Control.
+- Double-press Volume Up for a right swipe.
+- Double-press Volume Down for a left swipe. In Instagram, it enters or leaves bottom-tab navigation.
+- Long Volume Up performs Home.
+- Long Volume Down performs Back.
+- Hold both volume keys for about two seconds to open the Emergency Launcher.
+- Keep holding both keys for about three seconds to exit Emergency Control.
 
-The overlay uses Android accessibility nodes. Standard Android controls, launchers, settings, and most apps work well. Games, protected surfaces, and custom canvas interfaces may expose few or no selectable controls.
+The Emergency Launcher discovers installed launcher activities instead of using a hard-coded package list. Its first four entries perform Up, Down, Left, and Right swipes; the remaining pages contain installed apps. This avoids Android package-visibility failures that previously allowed only some apps, such as Camera, to open.
+
+The overlay uses Android accessibility nodes and synthetic accessibility gestures. Standard Android controls, launchers, settings, and most apps work well. Games, protected surfaces, and custom canvas interfaces may expose few or no selectable controls. Instagram bottom navigation falls back to five screen regions when the app does not expose reliable accessibility nodes.
 
 ### Live diagnosis evidence
 
@@ -135,6 +144,8 @@ Bu işlem telefonu yeniden başlatmadan dokunmatik modülü kapatıp tekrar aça
 - Shizuku’dan bağımsız acil dokunma kalkanı
 - Korumalı Dokunma: ekran dokunuşunu onaylamak için Ses Açma tuşunu basılı tutma
 - Dokunmatik kullanmadan TV tarzı Tuş Takımı kontrolü
+- Kurulu ve başlatılabilir tüm uygulamaları otomatik listeleyen Acil Başlatıcı
+- Dört yönlü kaydırma eylemleri ve Instagram gezinme yedeği
 - Ses Açma, Ses Kısma ve çalkalama için isteğe bağlı Erişilebilirlik Servisi tetikleyicileri
 - Cihaz yazılımı özel Yan tuş uygulamalarını destekliyorsa Samsung Yan tuş başlatma kısayolu
 - İki dilli arayüz: Türkçe ve İngilizce
@@ -170,18 +181,25 @@ Erişilebilirlik Servisi bir kez açıldıktan sonra Acil Durum Kontrolü Shizuk
 - Ses Kısma kısa basış Geri işlemini yapar.
 - Ses Kısma uzun basış Ana Ekran işlemini yapar.
 - İki ses tuşuna kısa basarak Tuş Takımı moduna geç.
-- Acil Durum Kontrolü’nden çıkmak için iki ses tuşunu yaklaşık iki saniye basılı tut.
+- Ana Ekran için Ses Kısma tuşunu uzun bas.
+- Acil Başlatıcıyı açmak için iki ses tuşunu yaklaşık iki saniye basılı tut.
+- Acil Durum Kontrolü’nden çıkmak için iki tuşu yaklaşık üç saniye basılı tutmaya devam et.
 
 **Tuş Takımı**
 
 - Ses Açma önceki görünür kontrolü seçer.
 - Ses Kısma sonraki görünür kontrolü seçer.
 - Seçili kontrolü çalıştırmak için iki ses tuşuna kısa bas.
-- Ses Açma uzun basış Geri işlemini yapar.
-- Ses Kısma uzun basış Ana Ekran işlemini yapar.
-- Acil Durum Kontrolü’nden çıkmak için iki ses tuşunu yaklaşık iki saniye basılı tut.
+- Sağa kaydırmak için Ses Açma’ya iki kez bas.
+- Sola kaydırmak için Ses Kısma’ya iki kez bas. Instagram’da bu hareket alt sekme gezinmesine girer veya çıkar.
+- Ses Açma uzun basış Ana Ekran işlemini yapar.
+- Ses Kısma uzun basış Geri işlemini yapar.
+- Acil Başlatıcıyı açmak için iki ses tuşunu yaklaşık iki saniye basılı tut.
+- Acil Durum Kontrolü’nden çıkmak için iki tuşu yaklaşık üç saniye basılı tutmaya devam et.
 
-Overlay Android erişilebilirlik düğümlerini kullanır. Standart Android kontrolleri, launcher, ayarlar ve çoğu uygulama iyi çalışır. Oyunlar, korumalı yüzeyler ve özel canvas arayüzleri az sayıda veya hiç seçilebilir kontrol sunmayabilir.
+Acil Başlatıcı sabit bir paket listesi kullanmak yerine cihazdaki launcher aktivitelerini otomatik keşfeder. İlk dört öğe Yukarı, Aşağı, Sola ve Sağa kaydırma yapar; sonraki sayfalarda kurulu uygulamalar bulunur. Bu, daha önce Kamera gibi yalnızca bazı uygulamaların açılmasına yol açan Android paket görünürlüğü sorununu ortadan kaldırır.
+
+Overlay Android erişilebilirlik düğümlerini ve sentetik erişilebilirlik hareketlerini kullanır. Standart Android kontrolleri, launcher, ayarlar ve çoğu uygulama iyi çalışır. Oyunlar, korumalı yüzeyler ve özel canvas arayüzleri az sayıda veya hiç seçilebilir kontrol sunmayabilir. Instagram güvenilir erişilebilirlik düğümü sunmadığında alt gezinme beş ekran bölgesine ayrılan yedek yöntemi kullanır.
 
 ### Canlı tanı kanıtları
 
